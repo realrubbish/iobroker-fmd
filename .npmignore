@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Build output
+build/
+*.tsbuildinfo
+
+# Development
+.git/
+.gitignore
+.claude/
+.mcp.json
+
+# Testing
+test/
+
+# Documentation (included in docs/ for reference, not needed in package)
+docs/
+*.md
+!.README.md
+!LICENSE
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
