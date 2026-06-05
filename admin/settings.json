@@ -13,7 +13,7 @@
                     "default": "https://fmd.schnurri.ch",
                     "pattern": "^https://.*",
                     "required": true,
-                    "Validator": {
+                    "validator": {
                         "type": "url",
                         "message": "URL must start with https://"
                     }
@@ -58,6 +58,30 @@
                         "command": "testConnection",
                         "data": ""
                     }
+                }
+            }
+        },
+        "devices": {
+            "type": "panel",
+            "label": "Devices",
+            "items": {
+                "deviceInfo": {
+                    "type": "staticText",
+                    "label": "Available Devices",
+                    "text": "Devices are managed in 0_userdata.0.FindMyDevice. Set ring.<deviceId> to true to trigger a ring.",
+                    "newLine": true
+                },
+                "userdataRingInfo": {
+                    "type": "staticText",
+                    "label": "Ring States",
+                    "text": "Ring states available at: 0_userdata.0.FindMyDevice.ring.<deviceId>",
+                    "newLine": true
+                },
+                "userdataDevicesInfo": {
+                    "type": "staticText",
+                    "label": "Device Info",
+                    "text": "Device info at: 0_userdata.0.FindMyDevice.devices.<deviceId>.(name|type)",
+                    "newLine": true
                 }
             }
         }
