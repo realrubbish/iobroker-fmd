@@ -1,0 +1,65 @@
+{
+    "type": "tabs",
+    "i18n": true,
+    "items": {
+        "connection": {
+            "type": "panel",
+            "label": "FMD Connection",
+            "items": {
+                "serverUrl": {
+                    "type": "text",
+                    "label": "FMD Server URL",
+                    "description": "URL of the FMD server (e.g., https://fmd.schnurri.ch)",
+                    "default": "https://fmd.schnurri.ch",
+                    "pattern": "^https://.*",
+                    "required": true,
+                    "Validator": {
+                        "type": "url",
+                        "message": "URL must start with https://"
+                    }
+                },
+                "username": {
+                    "type": "text",
+                    "label": "Username",
+                    "description": "FMD server username",
+                    "required": true
+                },
+                "password": {
+                    "type": "password",
+                    "label": "Password",
+                    "description": "FMD server password (stored encrypted)",
+                    "required": true,
+                    "writeOnly": true
+                }
+            }
+        },
+        "status": {
+            "type": "panel",
+            "label": "Connection Status",
+            "items": {
+                "connectionState": {
+                    "type": "staticText",
+                    "label": "Status",
+                    "text": "{{info.connection}}",
+                    "style": {
+                        "fontWeight": "bold"
+                    }
+                },
+                "lastError": {
+                    "type": "staticText",
+                    "label": "Last Error",
+                    "text": "{{info.lastError}}"
+                },
+                "testButton": {
+                    "type": "button",
+                    "label": "Test Connection",
+                    "onClick": {
+                        "type": "sendTo",
+                        "command": "testConnection",
+                        "data": ""
+                    }
+                }
+            }
+        }
+    }
+}

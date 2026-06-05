@@ -1,0 +1,68 @@
+{
+  "common": {
+    "name": "fmd",
+    "version": "0.0.1",
+    "title": "FMD (Find My Device)",
+    "titleLang": {
+      "en": "FMD (Find My Device)",
+      "de": "FMD (Find My Device)"
+    },
+    "desc": {
+      "en": "Ring FMD devices via ioBroker hardware or software buttons",
+      "de": "FMD Geräte über ioBroker Hardware- oder Software-Buttons klingeln lassen"
+    },
+    "authors": [
+      "tschnurre"
+    ],
+    "keywords": [
+      "ioBroker",
+      "FMD",
+      "Find My Device",
+      "ntfy",
+      "ring"
+    ],
+    "license": "MIT",
+    "type": "messaging",
+    "connectionType": "cloud",
+    "dataSource": "push",
+    "encryptedNative": ["native.password"],
+    "protectedNative": ["native.password"],
+    "adminUI": {
+      "config": "json"
+    },
+    "licenseTerms": "MIT",
+    "platform": "Javascript/Node.js",
+    "main": "build/index.js",
+    "singleInstance": true,
+    "mode": "daemon"
+  },
+  "native": {
+    "serverUrl": "https://fmd.schnurri.ch",
+    "username": "",
+    "password": ""
+  },
+  "schema": {
+    "type": "object",
+    "properties": {
+      "serverUrl": {
+        "type": "string",
+        "title": "FMD Server URL",
+        "description": "URL of the FMD server (e.g., https://fmd.schnurri.ch)",
+        "pattern": "^https://.*",
+        "default": "https://fmd.schnurri.ch"
+      },
+      "username": {
+        "type": "string",
+        "title": "Username",
+        "description": "FMD server username"
+      },
+      "password": {
+        "type": "string",
+        "title": "Password",
+        "description": "FMD server password (stored encrypted)",
+        "writeOnly": true
+      }
+    },
+    "required": ["serverUrl", "username", "password"]
+  }
+}

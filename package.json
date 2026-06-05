@@ -1,0 +1,41 @@
+{
+  "name": "iobroker.fmd",
+  "version": "0.0.1",
+  "description": "Ring FMD devices via ioBroker",
+  "author": "tschnurre",
+  "license": "MIT",
+  "keywords": [
+    "iobroker",
+    "fmd",
+    "find-my-device"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tschnurre/ioBroker-fmd-adapter"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@iobroker/adapter-core": "^3.3.2",
+    "axios": "^1.7.9"
+  },
+  "devDependencies": {
+    "@iobroker/adapter-dev": "^1.0.0",
+    "@iobroker/eslint-config": "^1.0.0",
+    "@iobroker/testing": "^5.0.0",
+    "@types/axios": "^0.14.0",
+    "@types/node": "^20.0.0",
+    "eslint": "^9.0.0",
+    "mocha": "^11.0.0",
+    "typescript": "~5.9.0"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "watch": "tsc --build --watch",
+    "test": "npm run build && npm run test:unit",
+    "test:unit": "mocha",
+    "lint": "eslint src/**/*.ts"
+  },
+  "main": "build/index.js"
+}
