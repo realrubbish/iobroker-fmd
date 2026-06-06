@@ -21,3 +21,15 @@ The ioBroker adapter fails to start after installation with **exit code 25** (mo
 - **Files modified**: `io-package.json`, `package.json` (verification only)
 - **CI/CD**: New validation step in build pipeline
 - **Breaking**: None — this is a critical bug fix
+
+## Testing & Deployment
+
+**Testing workflow** (always follow this sequence):
+
+1. `git push` to trigger GitHub Actions CI (build + validation)
+2. `docker compose up -d` — start/restart ioBroker container
+3. `docker exec iobroker-fmd-dev iobroker url https://github.com/realrubbish/ioBroker-FMD-adapter fmd` — install adapter from GitHub tarball
+4. `docker exec iobroker-fmd-dev iobroker add fmd` — add adapter instance
+5. `docker exec iobroker-fmd-dev iobroker logs fmd --files=20` — verify it starts
+
+For hot-reload development: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d`

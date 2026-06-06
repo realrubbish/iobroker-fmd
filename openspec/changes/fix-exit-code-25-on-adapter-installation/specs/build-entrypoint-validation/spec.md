@@ -19,3 +19,9 @@ The CI pipeline SHALL execute the entry point validation step after the build st
 #### Scenario: CI catches entry point mismatch
 - **WHEN** a PR introduces a change that breaks the entry point path
 - **THEN** CI fails with an appropriate error message
+
+#### Scenario: Deployment via GitHub tarball
+- **WHEN** `iobroker url https://github.com/realrubbish/ioBroker-FMD-adapter` installs the adapter
+- **THEN** the `build/` directory is present in the tarball (committed to repo)
+- **AND** the postbuild validation runs during npm install in the container
+- **AND** if validation fails, npm exits with non-zero code

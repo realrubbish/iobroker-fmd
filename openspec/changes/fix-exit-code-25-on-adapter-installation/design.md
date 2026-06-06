@@ -26,3 +26,17 @@ The adapter build process compiles `src/main.ts` → `build/main.js`, but `io-pa
 
 - **Risk**: Old installations may cache the broken config
   - **Mitigation**: Clear adapter cache via `iobroker clean all` or reinstall adapter after fix
+
+## Deployment & Testing
+
+The adapter is deployed from GitHub via `iobroker url`. The build output (`build/`) is committed to the repository so it's included in the GitHub tarball.
+
+**Standard test sequence:**
+```bash
+git push
+docker compose up -d
+docker exec iobroker-fmd-dev iobroker url https://github.com/realrubbish/ioBroker-FMD-adapter fmd
+docker exec iobroker-fmd-dev iobroker add fmd
+```
+
+**Note:** The `iobroker url` command handles both npm install AND ioBroker internal adapter registration. Exit code 25 from this command indicates an entry point mismatch (the original bug this change fixes).
