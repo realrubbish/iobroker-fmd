@@ -32,7 +32,7 @@
     },
     "licenseTerms": "MIT",
     "platform": "Javascript/Node.js",
-    "main": "build/index.js",
+    "main": "build/main.js",
     "singleInstance": true,
     "mode": "daemon"
   },

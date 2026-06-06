@@ -32,10 +32,11 @@
   },
   "scripts": {
     "build": "tsc --build",
+    "postbuild": "node scripts/validate-entrypoint.js",
     "watch": "tsc --build --watch",
     "test": "npm run build && npm run test:unit",
     "test:unit": "mocha",
     "lint": "eslint src/**/*.ts"
   },
-  "main": "build/index.js"
+  "main": "build/main.js"
 }
