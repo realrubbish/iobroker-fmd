@@ -77,3 +77,37 @@ openspec/changes/<name>/
 - **Style**: ioBroker official style (cyan `#39c`, dark blue `#164477`)
 - **Documentation Language**: English
 - **Target Audience**: Experienced ioBroker users
+
+## Deployment & Testing Workflow
+
+**For every change — always follow this exact sequence:**
+
+1. **Commit & Push**
+   ```bash
+   git add <files>
+   git commit -m "fix: correct entry point..."
+   git push
+   ```
+
+2. **Start/Restart Docker Container**
+   ```bash
+   docker compose up -d
+   # or: docker compose restart
+   ```
+
+3. **Install Adapter in Container**
+   ```bash
+   docker exec iobroker-fmd-dev iobroker url https://github.com/realrubbish/ioBroker-FMD-adapter fmd
+   ```
+
+4. **Add Instance (if needed)**
+   ```bash
+   docker exec iobroker-fmd-dev iobroker add fmd
+   ```
+
+5. **Verify**
+   ```bash
+   docker exec iobroker-fmd-dev iobroker logs fmd --files=20
+   ```
+
+**IMPORTANT:** The `iobroker url` command handles both npm install AND ioBroker internal registration. It installs from the GitHub tarball (latest commit). For hot-reload dev, use `docker-compose.dev.yml`.
