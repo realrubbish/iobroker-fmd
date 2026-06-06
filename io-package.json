@@ -37,7 +37,7 @@
     "mode": "daemon"
   },
   "native": {
-    "serverUrl": "https://fmd.schnurri.ch",
+    "serverUrl": "https://fmd.example.com",
     "username": "",
     "password": ""
   },
@@ -47,9 +47,9 @@
       "serverUrl": {
         "type": "string",
         "title": "FMD Server URL",
-        "description": "URL of the FMD server (e.g., https://fmd.schnurri.ch)",
+        "description": "URL of the FMD server (e.g., https://fmd.example.com)",
         "pattern": "^https://.*",
-        "default": "https://fmd.schnurri.ch"
+        "default": "https://fmd.example.com"
       },
       "username": {
         "type": "string",

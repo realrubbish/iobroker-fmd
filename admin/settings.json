@@ -9,8 +9,8 @@
                 "serverUrl": {
                     "type": "text",
                     "label": "FMD Server URL",
-                    "description": "URL of the FMD server (e.g., https://fmd.schnurri.ch)",
-                    "default": "https://fmd.schnurri.ch",
+                    "description": "URL of the FMD server (e.g., https://fmd.example.com)",
+                    "default": "https://fmd.example.com",
                     "pattern": "^https://.*",
                     "required": true,
                     "validator": {

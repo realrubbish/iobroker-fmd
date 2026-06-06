@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "iobroker": {
+      "type": "stdio",
+      "command": "iobroker-simple-api-mcp-server",
+      "args": [
+        "--host=http://localhost:8087"
+      ]
+    }
+  }
+}

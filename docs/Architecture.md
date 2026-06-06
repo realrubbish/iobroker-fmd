@@ -191,7 +191,7 @@ async function sendRingCommand(
     }
   },
   "native": {
-    "serverUrl": "https://fmd.schnurri.ch",
+    "serverUrl": "https://fmd.example.com",
     "username": "",
     "password": ""
   }
@@ -212,7 +212,7 @@ async function sendRingCommand(
                 "serverUrl": {
                     "type": "text",
                     "label": "FMD Server URL",
-                    "default": "https://fmd.schnurri.ch"
+                    "default": "https://fmd.example.com"
                 },
                 "username": {
                     "type": "text",

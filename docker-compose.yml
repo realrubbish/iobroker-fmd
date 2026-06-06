@@ -1,0 +1,22 @@
+services:
+  iobroker:
+    image: iobroker/iobroker:latest
+    container_name: iobroker-fmd-dev
+    restart: unless-stopped
+    ports:
+      - "${IOBROKER_PORT:-8081}:8081"
+      - "8087:8087"
+    environment:
+      - IOBROKER_OBJECT_LANGUAGE=${IOBROKER_OBJECT_LANGUAGE:-en}
+      - INIT_ADMIN_PASSWORD=${IOBROKER_ADMIN_PASSWORD:-admin123}
+    volumes:
+      - iobroker-data:/opt/iobroker/data
+    networks:
+      - iobroker-net
+
+volumes:
+  iobroker-data:
+
+networks:
+  iobroker-net:
+    name: iobroker-fmd-network

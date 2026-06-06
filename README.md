@@ -56,7 +56,7 @@ The adapter uses the modern JSON Config interface (ioBroker Admin 7+):
 ```
 ┌─────────────────────────────────────────────────────┐
 │ FMD Connection                                      │
-│ ├─ Server URL: [https://fmd.schnurri.ch        ]   │
+│ ├─ Server URL: [https://fmd.example.com        ]   │
 │ ├─ Username:   [admin                        ]   │
 │ └─ Password:   [••••••••••                    ]   │
 │                                                      │
@@ -140,6 +140,28 @@ sendTo('fmd.0', 'ring', { device: 'my-phone' });
 
 ## Troubleshooting
 
+### Docker Troubleshooting
+
+#### Volume mount not reflecting changes
+
+If changes to your source code don't appear inside the container:
+- Ensure `FMD_ADAPTER_SOURCE` in `.env` points to the correct path
+- Verify the volume is mounted: `docker compose -f docker-compose.yml -f docker-compose.dev.yml exec iobroker ls -la /opt/iobroker/node_modules/iobroker.fmd`
+- On macOS, Docker Desktop may have file watching limitations — try restarting the container
+
+#### Port already in use
+
+If `IOBROKER_PORT` is already in use:
+- Change the port in `.env`: `IOBROKER_PORT=9081`
+- Access ioBroker at `http://localhost:9081`
+
+#### Docker permission errors
+
+If you encounter permission issues:
+- Ensure Docker Desktop is running
+- Try: `docker compose down` then `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d`
+- On Linux, you may need to add your user to the `docker` group
+
 ### Adapter won't start
 
 1. Check logs: `iobroker logs fmd.0`
@@ -184,7 +206,58 @@ Copyright 2024-2026 ioBroker-fmd-adapter contributors
 
 ## Development
 
-### Setup
+### Docker-Based Development Environment
+
+For local development, you can run ioBroker in a Docker container with hot-reload support for the adapter source code.
+
+#### Prerequisites
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
+- At least 4GB RAM allocated to Docker Desktop
+
+#### Quick Start
+
+1. Copy the environment template:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Start ioBroker with development configuration:
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+   ```
+
+3. Access ioBroker Admin at http://localhost:8081
+
+4. Install the fmd adapter via ioBroker Admin → Adapters
+
+#### Start/Stop Commands
+
+| Command | Description |
+|---------|-------------|
+| `docker compose up -d` | Start ioBroker (base config, uses `.env` for port/settings) |
+| `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d` | Start with dev overrides (hot reload) |
+| `docker compose down` | Stop ioBroker |
+| `docker compose logs -f` | View logs |
+| `docker compose restart` | Restart ioBroker |
+
+#### Port Configuration
+
+Edit the `.env` file to change default ports:
+
+```bash
+IOBROKER_PORT=9081  # ioBroker admin on port 9081 instead of 8081
+```
+
+#### How It Works
+
+- `docker-compose.yml` — Base configuration with ioBroker service
+- `docker-compose.dev.yml` — Development override that mounts your source code
+- `.env` — Environment variables for customization
+
+The adapter source code is mounted at `/opt/iobroker/node_modules/iobroker.fmd` inside the container, enabling hot-reload development without rebuilding the Docker image.
+
+### Native Development Setup
 
 ```bash
 npm install

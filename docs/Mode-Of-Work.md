@@ -25,6 +25,13 @@ This project uses OpenSpec for change management. All features must go through t
 - After `/opsx:apply` completes all tasks, offer `/opsx:archive` - do NOT ask "what next"
 - No feature implementation outside of an approved change
 
+**💡 Before Starting a New Change:**
+- Run `/clear` to start with a clean slate
+- Then run `/opsx:propose <name>` to create the change skeleton
+
+**💡 After Completing a Change:**
+- Run `/clear` to reset context before the next task or change
+
 ## 2. Chunk-Based Work
 
 ### 2.1 Principle

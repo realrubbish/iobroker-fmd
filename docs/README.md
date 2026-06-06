@@ -56,7 +56,7 @@ The adapter uses the modern JSON Config interface (ioBroker Admin 7+):
 ```
 ┌─────────────────────────────────────────────────────┐
 │ FMD Connection                                      │
-│ ├─ Server URL: [https://fmd.schnurri.ch        ]   │
+│ ├─ Server URL: [https://fmd.example.com        ]   │
 │ ├─ Username:   [admin                        ]   │
 │ └─ Password:   [••••••••••                    ]   │
 │                                                      │

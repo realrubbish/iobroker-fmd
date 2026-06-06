@@ -11,7 +11,7 @@
 
 - **Vision**: `docs/vision.md` - Project vision and requirements
 - **Research**: `docs/Research.md` - Collected research data
-- **FMD Server**: https://fmd.schnurri.ch (user's deployment)
+- **FMD Server**: https://fmd.example.com (user's deployment)
 - **FMD Docs**: https://fmd-foss.org/docs/fmd-server
 - **ioBroker Adapter Template**: https://github.com/ioBroker/create-adapter
 

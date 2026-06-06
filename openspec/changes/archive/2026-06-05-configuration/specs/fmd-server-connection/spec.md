@@ -4,7 +4,7 @@
 The adapter SHALL allow configuration of the FMD server endpoint URL via adapter settings.
 
 #### Scenario: Configure valid server endpoint
-- **WHEN** user enters a valid HTTPS URL (e.g., `https://fmd.schnurri.ch`) in adapter settings
+- **WHEN** user enters a valid HTTPS URL (e.g., `https://fmd.example.com`) in adapter settings
 - **THEN** the adapter SHALL store the endpoint URL and use it for all FMD API calls
 
 #### Scenario: Invalid endpoint URL is rejected

@@ -1,0 +1,7 @@
+services:
+  iobroker:
+    volumes:
+      # Mount the adapter source code for hot reload development
+      - ${FMD_ADAPTER_SOURCE}:/opt/iobroker/node_modules/iobroker.fmd
+    environment:
+      - DEBUG=${DEBUG:-false}

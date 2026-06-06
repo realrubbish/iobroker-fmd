@@ -19,6 +19,7 @@
 | [User-Experience.md](#6-user-experiencemd) | ✅ Fertig | aa58448d |
 | [Guidelines/JavaScript.md](#7-guidelinesjavascriptmd) | ✅ Fertig | a71577bc |
 | [README.md](#8-readmemd) | ✅ Fertig | ab234f15 |
+| [ioBroker Docker](#9-iobroker-docker) | ✅ Fertig | manuell |
 
 ---
 
@@ -67,9 +68,9 @@ Ein ioBroker-Adapter ist ein Software-Modul, das die ioBroker-Smart-Home-Plattfo
     ↓ (MQTT: triple_push)
 [shelly.0.shellyplus1pm#cc7b5c837250#1.Input0.Event]
     ↓
-[ioBroker auf zephyr.schnurri.ch]
+[ioBroker auf zephyr.example.com]
     ↓ (JavaScript/Adapter)
-[FMD-Server auf fmd.schnurri.ch:443]
+[FMD-Server auf fmd.example.com:443]
     ↓ (ntfy push)
 [Handy mit FMD/ntfy-App]
     → Klingelton!
@@ -140,7 +141,7 @@ JavaScript Script
     ↓ sendTo
 FMD Adapter (fmd.0)
     ↓ POST /api/v1/command
-FMD Server (https://fmd.schnurri.ch)
+FMD Server (https://fmd.example.com)
     ↓ ntfy push
 FMD App auf Handy
     ↓
@@ -526,6 +527,142 @@ on({id: 'shelly.0.shellyplus1pm#cc7b5c837250#1.Input0.Event', change: 'triple_pu
   "oid": "0_userdata.0.FindMyDevice.ring",
   "value": "my-phone"
 }
+```
+
+---
+
+## 9. ioBroker Docker
+
+### 9.1 Offizielles Docker Image
+
+**Repository:** `iobroker/iobroker` (Mirror von `buanet/iobroker`)
+**Registry:** Docker Hub, GitHub Container Registry (`ghcr.io/buanet/iobroker`)
+**Base:** Debian Bookworm slim
+**Architectures:** amd64, arm32v7, arm64v8
+
+### 9.2 verfügbare Tags
+
+| Tag | Node | Notes |
+|-----|------|-------|
+| `v11.1.0`, `latest` | Node 22 | Current latest |
+| `v10.0.0`, `latest-v10` | Node 20 | Node 20 LTS |
+| `latest-beta` | Node 22 | Pre-release |
+
+> *Note:* Es wird empfohlen, NICHT den `latest` Tag für Produktion zu verwenden.
+
+### 9.3 Docker Compose (Minimal)
+
+```yaml
+version: '2'
+services:
+  iobroker:
+    container_name: iobroker
+    image: buanet/iobroker
+    hostname: iobroker
+    restart: always
+    ports:
+      - "8081:8081"
+    volumes:
+      - iobrokerdata:/opt/iobroker
+    environment:
+      - TZ=Europe/Berlin
+
+volumes:
+  iobrokerdata:
+```
+
+### 9.4 Volume Mounts
+
+| Path | Purpose |
+|------|---------|
+| `/opt/iobroker` | Hauptverzeichnis für ioBroker-Daten (persistent) |
+| `/opt/userscripts` | Custom Startup-Scripts |
+
+### 9.5 Wichtige Environment Variablen
+
+**Application Configuration:**
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `IOB_ADMINPORT` | 8081 | Admin Port |
+| `IOB_OBJECTSDB_TYPE` | jsonl | Objects DB: jsonl, file, redis |
+| `IOB_STATESDB_TYPE` | jsonl | States DB: jsonl, file, redis |
+| `TZ` | Europe/Berlin | Zeitzone |
+
+**Environment Configuration:**
+| Variable | Description |
+|----------|-------------|
+| `DEBUG` | Set `true` für erweitertes Logging |
+| `SETUID`/`SETGID` | User/Group ID (default: 1000) |
+| `USBDEVICES` | USB device paths (z.B. `/dev/ttyACM0`) |
+| `OFFLINE_MODE` | Set `true` für eingeschränktes Internet |
+| `AVAHI` | Set `true` für avahi-daemon (yahka adapter) |
+
+### 9.6 Adapter Installation ( Lokale Entwicklung)
+
+**docker exec für npm Installation:**
+```bash
+# Adapter vom npm Registry installieren
+docker exec iobroker iobroker upload fmd
+
+# Oder direkt im Container arbeiten
+docker exec -it iobroker bash
+```
+
+**Lokalen Adapter mounten (Development):**
+```yaml
+version: '2'
+services:
+  iobroker:
+    volumes:
+      - ./iobroker-fmd-adapter:/opt/iobroker/node_modules/iobroker.fmd
+      - iobrokerdata:/opt/iobroker
+```
+
+> *Note:* Der Adapter muss nach dem Mounten einmalig über die Admin-UI aktiviert werden.
+
+### 9.7 Maintenance Mode (Testing)
+
+Für kontrolliertes Testen von Upgrades:
+```bash
+docker exec iobroker maintenance on
+docker exec iobroker maintenance upgrade
+docker exec iobroker maintenance off
+```
+
+### 9.8 Testing Workflow
+
+**Minimaler Start für Tests:**
+```bash
+# Container starten
+docker run -p 8081:8081 --name iobroker -h iobroker buanet/iobroker
+
+# Wichtig: Daten gehen bei Container-Entfernung verloren!
+# Für persistente Daten: Volume mounten wie oben gezeigt
+```
+
+**Health Check:**
+- Image enthält seit v5.1.0 einen Docker Health Check
+- Status: `docker inspect iobroker --format='{{.State.Health.Status}}'`
+
+### 9.9 Architectur (Docker Desktop macOS)
+
+```
+┌─────────────────────────────────────────┐
+│         Docker Desktop (macOS)          │
+│  ┌───────────────────────────────────┐  │
+│  │    ioBroker Container             │  │
+│  │  ┌─────────────────────────────┐  │  │
+│  │  │  ioBroker.js-controller     │  │  │
+│  │  │  ┌─────────────────────────┐ │  │  │
+│  │  │  │  FMD Adapter           │ │  │  │
+│  │  │  │  (iobroker.fmd)         │ │  │  │
+│  │  │  └─────────────────────────┘ │  │  │
+│  │  └─────────────────────────────┘  │  │
+│  └───────────────────────────────────┘  │
+│           │ Port 8081                  │
+└───────────┼─────────────────────────────┘
+            │
+     Browser (Admin UI)
 ```
 
 ---
