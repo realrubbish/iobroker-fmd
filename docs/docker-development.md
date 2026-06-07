@@ -63,18 +63,3 @@ docker exec iobroker-fmd-dev iobroker add fmd
 
 If the adapter directory exists in `node_modules` but `iobroker list adapters` doesn't show it, the adapter object wasn't registered in ioBroker's objects DB. Restart the container to force rediscovery.
 
-## Dev Hot Reload
-
-For live development with file changes synced into the container:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
-```
-
-This mounts the local source into the container's `node_modules/iobroker.fmd` path. After changing source, rebuild locally:
-
-```bash
-npm run build
-```
-
-The changes are immediately reflected in the running container.

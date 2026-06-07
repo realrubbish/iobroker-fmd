@@ -110,4 +110,4 @@ openspec/changes/<name>/
    docker exec iobroker-fmd-dev iobroker logs iobroker-fmd --files=20
    ```
 
-**Important:** The `iobroker url` command installs directly from the GitHub tarball (latest commit). No local build step is needed for this workflow. A local `npm run build` is only required for hot-reload development using `docker-compose.dev.yml`.
+**Important:** The `iobroker url` command installs directly from the GitHub tarball (latest commit). A local `npm run build` is only needed for local development builds.

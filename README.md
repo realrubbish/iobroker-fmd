@@ -144,10 +144,9 @@ sendTo('iobroker-fmd.0', 'ring', { device: 'my-phone' });
 
 #### Volume mount not reflecting changes
 
-If changes to your source code don't appear inside the container:
-- Ensure `FMD_ADAPTER_SOURCE` in `.env` points to the correct path
-- Verify the volume is mounted: `docker compose -f docker-compose.yml -f docker-compose.dev.yml exec iobroker ls -la /opt/iobroker/node_modules/iobroker.fmd`
-- On macOS, Docker Desktop may have file watching limitations — try restarting the container
+If you need to refresh adapter files after a code change:
+- Reinstall via: `docker exec iobroker-fmd-dev iobroker url https://github.com/realrubbish/iobroker-fmd iobroker-fmd`
+- Or restart the container: `docker compose restart`
 
 #### Port already in use
 
@@ -159,7 +158,7 @@ If `IOBROKER_PORT` is already in use:
 
 If you encounter permission issues:
 - Ensure Docker Desktop is running
-- Try: `docker compose down` then `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d`
+- Try: `docker compose down` then `docker compose up -d`
 - On Linux, you may need to add your user to the `docker` group
 
 ### Adapter won't start
@@ -206,61 +205,40 @@ Copyright 2024-2026 ioBroker-fmd-adapter contributors
 
 ## Development
 
-### Docker-Based Development Environment
+### Docker-Based Testing
 
-For local development, you can run ioBroker in a Docker container with hot-reload support for the adapter source code.
+To test changes in a Docker container, follow this workflow:
 
-#### Prerequisites
+```bash
+# 1. Commit and push your changes
+git add <files>
+git commit -m "fix: describe your change"
+git push
+
+# 2. Start the Docker container
+docker compose up -d
+
+# 3. Install adapter from GitHub
+docker exec iobroker-fmd-dev iobroker url https://github.com/realrubbish/iobroker-fmd iobroker-fmd
+
+# 4. Add adapter instance (if needed)
+docker exec iobroker-fmd-dev iobroker add iobroker-fmd
+
+# 5. Verify
+docker exec iobroker-fmd-dev iobroker logs iobroker-fmd --files=20
+```
+
+### Prerequisites
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
 - At least 4GB RAM allocated to Docker Desktop
 
-#### Quick Start
-
-1. Copy the environment template:
-   ```bash
-   cp .env.example .env
-   ```
-
-2. Start ioBroker with development configuration:
-   ```bash
-   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
-   ```
-
-3. Access ioBroker Admin at http://localhost:8081
-
-4. Install the fmd adapter via ioBroker Admin → Adapters
-
-#### Start/Stop Commands
-
-| Command | Description |
-|---------|-------------|
-| `docker compose up -d` | Start ioBroker (base config, uses `.env` for port/settings) |
-| `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d` | Start with dev overrides (hot reload) |
-| `docker compose down` | Stop ioBroker |
-| `docker compose logs -f` | View logs |
-| `docker compose restart` | Restart ioBroker |
-
-#### Port Configuration
+### Port Configuration
 
 Edit the `.env` file to change default ports:
 
 ```bash
 IOBROKER_PORT=9081  # ioBroker admin on port 9081 instead of 8081
-```
-
-#### How It Works
-
-- `docker-compose.yml` — Base configuration with ioBroker service
-- `docker-compose.dev.yml` — Development override that mounts your source code
-- `.env` — Environment variables for customization
-
-The adapter source code is mounted at `/opt/iobroker/node_modules/iobroker.fmd` inside the container, enabling hot-reload development without rebuilding the Docker image.
-
-### Native Development Setup
-
-```bash
-npm install
 ```
 
 ### Build
