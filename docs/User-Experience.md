@@ -62,22 +62,22 @@ adapter.log.debug(`Auth token expires in: ${expiresIn}s`);
 
 | State ID | Type | Role | Purpose |
 |----------|------|------|---------|
-| `fmd.0.info.connection` | boolean | `indicator.reachable` | Server connectivity |
-| `fmd.0.info.error` | boolean | `indicator.error` | Error state |
-| `fmd.0.info.lastError` | string | `text` | Error message |
+| `iobroker-fmd.0.info.connection` | boolean | `indicator.reachable` | Server connectivity |
+| `iobroker-fmd.0.info.error` | boolean | `indicator.error` | Error state |
+| `iobroker-fmd.0.info.lastError` | string | `text` | Error message |
 | `0_userdata.0.FindMyDevice.ring` | string | `command` | Ring trigger |
 
 ### 4.2 Quality Codes
 
 ```typescript
 // Setting state with quality
-adapter.setState('fmd.0.info.connection', {
+adapter.setState('iobroker-fmd.0.info.connection', {
     val: true,
     ack: true,
     q: 0  // Good
 });
 
-adapter.setState('fmd.0.info.error', {
+adapter.setState('iobroker-fmd.0.info.error', {
     val: true,
     ack: true,
     q: 0x02  // No connection

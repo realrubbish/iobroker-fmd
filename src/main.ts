@@ -32,7 +32,7 @@ class FmdAdapter extends utils.Adapter {
     public constructor(options: Partial<utils.AdapterOptions> = {}) {
         super({
             ...options,
-            name: "fmd",
+            name: "iobroker-fmd",
         });
 
         this.on("ready", this.onReady.bind(this));

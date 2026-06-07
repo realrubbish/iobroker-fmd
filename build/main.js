@@ -51,7 +51,7 @@ class FmdAdapter extends utils.Adapter {
     constructor(options = {}) {
         super({
             ...options,
-            name: "fmd",
+            name: "iobroker-fmd",
         });
         this.on("ready", this.onReady.bind(this));
         this.on("stateChange", this.onStateChange.bind(this));

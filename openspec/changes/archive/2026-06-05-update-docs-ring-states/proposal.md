@@ -1,6 +1,6 @@
 ## Why
 
-The `fmd-ring` change updated the ring trigger from `fmd.0.ring.<deviceId>` to `0_userdata.0.FindMyDevice.ring.<deviceId>`, but several documentation files still reference the old state paths.
+The `fmd-ring` change updated the ring trigger from `iobroker-fmd.0.ring.<deviceId>` to `0_userdata.0.FindMyDevice.ring.<deviceId>`, but several documentation files still reference the old state paths.
 
 ## What Changes
 

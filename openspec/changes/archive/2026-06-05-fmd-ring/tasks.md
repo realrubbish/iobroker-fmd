@@ -8,7 +8,7 @@
 ## 2. Device State Management
 
 - [x] 2.1 Add `fetchDevices()` method to main.ts
-- [x] 2.2 Create `fmd.0.devices.<deviceId>` states with metadata
+- [x] 2.2 Create `iobroker-fmd.0.devices.<deviceId>` states with metadata
 - [x] 2.3 Add device type and lastRing timestamp to device states
 - [x] 2.4 Add `getDevices()` method to retrieve device list
 

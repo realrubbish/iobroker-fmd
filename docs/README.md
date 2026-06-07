@@ -74,7 +74,7 @@ Trigger the ring command when a Shelly button is pressed:
 ```javascript
 // In a ioBroker JavaScript (javascript.0)
 on({id: 'shelly.0.shellyplus1pm#cc7b5c837250#1.Input0.Event', val: 'triple_push'}, function() {
-    sendTo('fmd.0', 'ring', { device: 'my-phone' });
+    sendTo('iobroker-fmd.0', 'ring', { device: 'my-phone' });
 });
 ```
 
@@ -82,7 +82,7 @@ Or with async/await:
 
 ```javascript
 on({id: 'shelly.0.shellyplus1pm#cc7b5c837250#1.Input0.Event', val: 'triple_push'}, async function() {
-    await sendToAsync('fmd.0', 'ring', { device: 'my-phone' });
+    await sendToAsync('iobroker-fmd.0', 'ring', { device: 'my-phone' });
 });
 ```
 
@@ -105,18 +105,18 @@ Add a button widget to your vis-2 Dashboard:
 setState('0_userdata.0.FindMyDevice.ring', 'my-phone');
 
 // Or with sendTo
-sendTo('fmd.0', 'ring', { device: 'my-phone' });
+sendTo('iobroker-fmd.0', 'ring', { device: 'my-phone' });
 ```
 
 ### Available States
 
 | State | Type | Description |
 |-------|------|-------------|
-| `fmd.0.info.connection` | boolean | FMD server reachable |
-| `fmd.0.info.error` | boolean | Error indicator |
-| `fmd.0.info.lastError` | string | Last error message |
+| `iobroker-fmd.0.info.connection` | boolean | FMD server reachable |
+| `iobroker-fmd.0.info.error` | boolean | Error indicator |
+| `iobroker-fmd.0.info.lastError` | string | Last error message |
 | `0_userdata.0.FindMyDevice.ring` | string | Ring command (device ID) |
-| `fmd.0.devices` | object | Available FMD devices |
+| `iobroker-fmd.0.devices` | object | Available FMD devices |
 
 ## Architecture
 
@@ -142,7 +142,7 @@ sendTo('fmd.0', 'ring', { device: 'my-phone' });
 
 ### Adapter won't start
 
-1. Check logs: `iobroker logs fmd.0`
+1. Check logs: `iobroker logs iobroker-fmd.0`
 2. Verify FMD server URL is accessible
 3. Check credentials are correct
 

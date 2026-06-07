@@ -97,17 +97,17 @@ openspec/changes/<name>/
 
 3. **Install Adapter in Container**
    ```bash
-   docker exec iobroker-fmd-dev iobroker url https://github.com/realrubbish/iobroker-fmd fmd
+   docker exec iobroker-fmd-dev iobroker url https://github.com/realrubbish/iobroker-fmd iobroker-fmd
    ```
 
 4. **Add Instance (if needed)**
    ```bash
-   docker exec iobroker-fmd-dev iobroker add fmd
+   docker exec iobroker-fmd-dev iobroker add iobroker-fmd
    ```
 
 5. **Verify**
    ```bash
-   docker exec iobroker-fmd-dev iobroker logs fmd --files=20
+   docker exec iobroker-fmd-dev iobroker logs iobroker-fmd --files=20
    ```
 
 **Important:** The `iobroker url` command installs directly from the GitHub tarball (latest commit). No local build step is needed for this workflow. A local `npm run build` is only required for hot-reload development using `docker-compose.dev.yml`.

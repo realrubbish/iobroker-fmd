@@ -90,18 +90,18 @@ The adapter follows ioBroker's official color scheme:
 |------|------------|---------|
 | NPM Package | `iobroker.fmd` | `npm install iobroker.fmd` |
 | GitHub Repository | `ioBroker-fmd-adapter` | github.com/.../ioBroker-fmd-adapter |
-| Adapter Instance | `fmd.0` | `sendTo('fmd.0', ...)` |
-| Object Prefix | `fmd.0.` | `fmd.0.info.connection` |
+| Adapter Instance | `iobroker-fmd.0` | `sendTo('iobroker-fmd.0', ...)` |
+| Object Prefix | `iobroker-fmd.0.` | `iobroker-fmd.0.info.connection` |
 
 ### 4.2 State Naming
 
 | State | ID | Type | Description |
 |-------|-----|------|-------------|
-| Connection | `fmd.0.info.connection` | boolean | FMD server reachable |
-| Error | `fmd.0.info.error` | boolean | Error indicator |
-| Last Error | `fmd.0.info.lastError` | string | Error message |
+| Connection | `iobroker-fmd.0.info.connection` | boolean | FMD server reachable |
+| Error | `iobroker-fmd.0.info.error` | boolean | Error indicator |
+| Last Error | `iobroker-fmd.0.info.lastError` | string | Error message |
 | Ring Command | `0_userdata.0.FindMyDevice.ring` | string | Ring trigger |
-| Devices | `fmd.0.devices` | object | Device list |
+| Devices | `iobroker-fmd.0.devices` | object | Device list |
 
 ## 5. README Structure
 
@@ -152,7 +152,7 @@ setState('0_userdata.0.FindMyDevice.ring', 'my-phone');
 |------|----------|
 | Quick phone finding | One-button ring |
 | Dashboard integration | vis-2 software button |
-| Automation scripts | `sendTo('fmd.0', 'ring', ...)` |
+| Automation scripts | `sendTo('iobroker-fmd.0', 'ring', ...)` |
 | Secure credentials | encryptedNative storage |
 
 ## 7. Competitive Positioning

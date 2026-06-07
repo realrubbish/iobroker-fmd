@@ -120,7 +120,7 @@ class FmdAdapter extends utils.Adapter {
     private auth: FmdAuth | null = null;
 
     public constructor(options: Partial<utils.AdapterOptions> = {}) {
-        super({ ...options, name: "fmd" });
+        super({ ...options, name: "iobroker-fmd" });
         this.on("ready", this.onReady.bind(this));
         this.on("stateChange", this.onStateChange.bind(this));
         this.on("unload", this.onUnload.bind(this));

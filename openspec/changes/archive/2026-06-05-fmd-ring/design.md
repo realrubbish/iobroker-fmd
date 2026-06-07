@@ -53,7 +53,7 @@ Constraints:
 - Natural mapping to FMD device IDs
 
 **Alternatives considered:**
-- `fmd.0.ring.<deviceId>`: Adapter namespace, not ideal for user-defined triggers
+- `iobroker-fmd.0.ring.<deviceId>`: Adapter namespace, not ideal for user-defined triggers
 - Single ring state with deviceId parameter: More complex vis-2 binding
 - Only sendTo interface: Less flexible for vis-2 native widgets
 

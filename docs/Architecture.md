@@ -38,7 +38,7 @@ import * as utils from "@iobroker/adapter-core";
 
 class FmdAdapter extends utils.Adapter {
     public constructor(options: Partial<utils.AdapterOptions> = {}) {
-        super({ ...options, name: "fmd" });
+        super({ ...options, name: "iobroker-fmd" });
         this.on("ready", this.onReady.bind(this));
         this.on("stateChange", this.onStateChange.bind(this));
         this.on("unload", this.onUnload.bind(this));
@@ -98,7 +98,7 @@ Called when subscribed states change. Parameters:
 ```
 [vis-2 Widget Button] → setState() → ioBroker State DB
                                                ↓
-                                         sendTo('fmd.0', 'ring', ...)
+                                         sendTo('iobroker-fmd.0', 'ring', ...)
                                                ↓
                                          onMessage('ring', ...)
                                                ↓
@@ -171,7 +171,7 @@ async function sendRingCommand(
 ```json
 {
   "common": {
-    "name": "fmd",
+    "name": "iobroker-fmd",
     "title": "FMD (Find My Device)",
     "titleLang": {
       "en": "FMD (Find My Device)",
@@ -245,11 +245,11 @@ async function sendRingCommand(
 
 | State ID | Type | Role | Description |
 |----------|------|------|-------------|
-| `fmd.0.info.connection` | boolean | `indicator.reachable` | FMD server reachable |
-| `fmd.0.info.error` | boolean | `indicator.error` | Connection error |
-| `fmd.0.info.lastError` | string | `text` | Last error message |
+| `iobroker-fmd.0.info.connection` | boolean | `indicator.reachable` | FMD server reachable |
+| `iobroker-fmd.0.info.error` | boolean | `indicator.error` | Connection error |
+| `iobroker-fmd.0.info.lastError` | string | `text` | Last error message |
 | `0_userdata.0.FindMyDevice.ring` | string | `command` | Ring command trigger |
-| `fmd.0.devices` | object | `meta` | List of FMD devices |
+| `iobroker-fmd.0.devices` | object | `meta` | List of FMD devices |
 
 ## 8. Error Handling
 

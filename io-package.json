@@ -1,6 +1,6 @@
 {
   "common": {
-    "name": "fmd",
+    "name": "iobroker-fmd",
     "version": "0.0.1",
     "title": "FMD (Find My Device)",
     "titleLang": {

@@ -6,7 +6,7 @@ The adapter SHALL retrieve the list of available FMD devices from the FMD server
 #### Scenario: Fetch devices successfully
 - **WHEN** adapter has valid authentication tokens
 - **THEN** it SHALL request device list from `/api/v1/devices` with signed request
-- **AND** SHALL create states for each device under `fmd.0.devices.<deviceId>`
+- **AND** SHALL create states for each device under `iobroker-fmd.0.devices.<deviceId>`
 
 #### Scenario: Device list includes device metadata
 - **WHEN** device list is retrieved
@@ -32,7 +32,7 @@ The adapter SHALL subscribe to button state changes and trigger ring when config
 - **THEN** adapter SHALL send ring command to the configured device
 
 #### Scenario: Software button via sendTo triggers ring
-- **WHEN** adapter receives `sendTo('fmd.0', 'ring', { deviceId: 'xxx' })`
+- **WHEN** adapter receives `sendTo('iobroker-fmd.0', 'ring', { deviceId: 'xxx' })`
 - **THEN** adapter SHALL send ring command to the specified device
 
 ### Requirement: RSA-PSS request signing

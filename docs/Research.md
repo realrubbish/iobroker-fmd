@@ -139,7 +139,7 @@ ioBroker State DB
     ↓ subscription
 JavaScript Script
     ↓ sendTo
-FMD Adapter (fmd.0)
+FMD Adapter (iobroker-fmd.0)
     ↓ POST /api/v1/command
 FMD Server (https://fmd.example.com)
     ↓ ntfy push
@@ -435,7 +435,7 @@ import * as utils from "@iobroker/adapter-core";
 
 class MyAdapter extends utils.Adapter {
     public constructor(options: Partial<utils.AdapterOptions> = {}) {
-        super({ ...options, name: "fmd" });
+        super({ ...options, name: "iobroker-fmd" });
         this.on("ready", this.onReady.bind(this));
         this.on("stateChange", this.onStateChange.bind(this));
         this.on("unload", this.onUnload.bind(this));
@@ -516,7 +516,7 @@ class MyAdapter extends utils.Adapter {
 
 ```javascript
 on({id: 'shelly.0.shellyplus1pm#cc7b5c837250#1.Input0.Event', change: 'triple_push'}, function() {
-    sendTo('fmd.0', 'ring', { device: 'my-phone' });
+    sendTo('iobroker-fmd.0', 'ring', { device: 'my-phone' });
 });
 ```
 

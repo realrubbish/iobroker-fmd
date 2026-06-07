@@ -1,11 +1,11 @@
 ## Context
 
-The `fmd-ring` change introduced ring states under `0_userdata.0.FindMyDevice` instead of `fmd.0`. Several documentation files still reference the old path `fmd.0.ring`.
+The `fmd-ring` change introduced ring states under `0_userdata.0.FindMyDevice` instead of `iobroker-fmd.0`. Several documentation files still reference the old path `iobroker-fmd.0.ring`.
 
 ## Goals / Non-Goals
 
 **Goals:**
-- Update all documentation references from `fmd.0.ring` to `0_userdata.0.FindMyDevice.ring`
+- Update all documentation references from `iobroker-fmd.0.ring` to `0_userdata.0.FindMyDevice.ring`
 - Maintain documentation consistency
 
 **Non-Goals:**
@@ -34,5 +34,5 @@ The `fmd-ring` change introduced ring states under `0_userdata.0.FindMyDevice` i
 
 ## Migration
 
-1. Replace `fmd.0.ring` with `0_userdata.0.FindMyDevice.ring` in all files
+1. Replace `iobroker-fmd.0.ring` with `0_userdata.0.FindMyDevice.ring` in all files
 2. Verify no references remain
