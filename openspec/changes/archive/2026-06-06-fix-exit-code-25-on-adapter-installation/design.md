@@ -35,7 +35,7 @@ The adapter is deployed from GitHub via `iobroker url`. The build output (`build
 ```bash
 git push
 docker compose up -d
-docker exec iobroker-fmd-dev iobroker url https://github.com/realrubbish/ioBroker-FMD-adapter fmd
+docker exec iobroker-fmd-dev iobroker url https://github.com/realrubbish/iobroker-fmd fmd
 docker exec iobroker-fmd-dev iobroker add fmd
 ```
 

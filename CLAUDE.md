@@ -97,7 +97,7 @@ openspec/changes/<name>/
 
 3. **Install Adapter in Container**
    ```bash
-   docker exec iobroker-fmd-dev iobroker url https://github.com/realrubbish/ioBroker-FMD-adapter fmd
+   docker exec iobroker-fmd-dev iobroker url https://github.com/realrubbish/iobroker-fmd fmd
    ```
 
 4. **Add Instance (if needed)**

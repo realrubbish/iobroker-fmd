@@ -11,7 +11,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/tschnurre/ioBroker-fmd-adapter"
+    "url": "https://github.com/realrubbish/iobroker-fmd"
   },
   "engines": {
     "node": ">=18"

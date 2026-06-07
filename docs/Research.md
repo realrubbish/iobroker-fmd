@@ -650,7 +650,7 @@ docker run -p 8081:8081 --name iobroker -h iobroker buanet/iobroker
 docker ps  # iobroker-fmd-dev sollte "healthy" sein
 
 # Adapter von GitHub installieren (Branch statt Commit-Hash verwenden!)
-docker exec iobroker-fmd-dev iobroker url https://github.com/realrubbish/ioBroker-FMD-adapter.git#main
+docker exec iobroker-fmd-dev iobroker url https://github.com/realrubbish/iobroker-fmd.git#main
 
 # Adapter-Instanz erstellen
 docker exec iobroker-fmd-dev iobroker add fmd --enabled

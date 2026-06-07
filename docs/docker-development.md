@@ -23,7 +23,7 @@ docker compose restart
 ### 3. Install Adapter in Container
 
 ```bash
-docker exec iobroker-fmd-dev iobroker url https://github.com/realrubbish/ioBroker-FMD-adapter fmd
+docker exec iobroker-fmd-dev iobroker url https://github.com/realrubbish/iobroker-fmd fmd
 ```
 
 This installs the adapter from GitHub (latest commit). The `iobroker url` command fetches the tarball from GitHub and runs npm install inside the container.

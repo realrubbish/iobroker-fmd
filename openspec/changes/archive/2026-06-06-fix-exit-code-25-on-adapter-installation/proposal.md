@@ -28,7 +28,7 @@ The ioBroker adapter fails to start after installation with **exit code 25** (mo
 
 1. `git push` to trigger GitHub Actions CI (build + validation)
 2. `docker compose up -d` — start/restart ioBroker container
-3. `docker exec iobroker-fmd-dev iobroker url https://github.com/realrubbish/ioBroker-FMD-adapter fmd` — install adapter from GitHub tarball
+3. `docker exec iobroker-fmd-dev iobroker url https://github.com/realrubbish/iobroker-fmd fmd` — install adapter from GitHub tarball
 4. `docker exec iobroker-fmd-dev iobroker add fmd` — add adapter instance
 5. `docker exec iobroker-fmd-dev iobroker logs fmd --files=20` — verify it starts
 
