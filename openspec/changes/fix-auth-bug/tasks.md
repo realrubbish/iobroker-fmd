@@ -32,9 +32,21 @@ and the auth smoke script without further guessing.
 
 ## 2. Pick the Argon2id library
 
-- [ ] 2.1 Run a 30-line spike in `/tmp` that installs `argon2` and `hash-wasm` side-by-side and times one `hash(pw, { memoryCost: 65536, timeCost: 3, parallelism: 4, hashLength: 32 })` call on the dev host
-- [ ] 2.2 If `argon2` builds natively on the dev host (macOS, Node 22), pick it. If not, pick `hash-wasm`
-- [ ] 2.3 Document the choice (and the timing numbers) in a comment in `package.json#dependencies` so the next person knows
+- [x] 2.1 Run a 30-line spike in `/tmp` that installs `argon2` and `hash-wasm` side-by-side and times one `hash(pw, { memoryCost: 65536, timeCost: 3, parallelism: 4, hashLength: 32 })` call on the dev host
+- [x] 2.2 If `argon2` builds natively on the dev host (macOS, Node 22), pick it. If not, pick `hash-wasm`
+- [x] 2.3 Document the choice (and the timing numbers) in a comment in `package.json#dependencies` so the next person knows
+
+## Library pick: `argon2` (committed 2026-06-08, spike in `/tmp/argon-spike`)
+
+`argon2` 0.x builds natively under Node 22 on macOS via prebuilt binaries
+(no compile-from-source on this dev host). Hash time: **25 ms** per call
+with the FMD-mandated parameters (M=64 MiB, T=3, P=4, len=32). The
+`hash-wasm` fallback runs in **98 ms** (4× slower) and produces the
+exact same PHC string. Since both produce the correct output, we
+prefer the native binding for performance. If the Docker container's
+build environment cannot build `argon2` natively (unlikely for
+`iobroker/iobroker:latest` on a glibc host), fall back to `hash-wasm` —
+the public API of the `deriveKey` wrapper stays identical.
 
 ## 3. Rewrite `deriveKey`
 
