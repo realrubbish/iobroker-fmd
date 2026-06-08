@@ -145,8 +145,9 @@ sendTo('iobroker-fmd.0', 'ring', { device: 'my-phone' });
 #### Volume mount not reflecting changes
 
 If you need to refresh adapter files after a code change:
-- Reinstall via: `docker exec iobroker-fmd-dev iobroker url https://github.com/realrubbish/iobroker-fmd iobroker-fmd`
-- Or restart the container: `docker compose restart`
+- Reinstall via: `docker exec iobroker-fmd-dev iobroker url https://github.com/realrubbish/iobroker-fmd`
+- Apply directory workaround (see Docker-Based Testing step 4)
+- Restart the container: `docker compose restart`
 
 #### Port already in use
 
@@ -219,14 +220,25 @@ git push
 docker compose up -d
 
 # 3. Install adapter from GitHub
-docker exec iobroker-fmd-dev iobroker url https://github.com/realrubbish/iobroker-fmd iobroker-fmd
+docker exec iobroker-fmd-dev iobroker url https://github.com/realrubbish/iobroker-fmd
 
-# 4. Add adapter instance (if needed)
+# 4. Fix adapter directory (workaround for ioBroker GitHub adapter issue)
+docker exec iobroker-fmd-dev bash -c "\
+  mkdir -p /opt/iobroker/node_modules/iobroker.iobroker-fmd && \
+  cp -r /opt/iobroker/node_modules/iobroker.fmd/* /opt/iobroker/node_modules/iobroker.iobroker-fmd/ && \
+  chown -R iobroker:iobroker /opt/iobroker/node_modules/iobroker.iobroker-fmd"
+
+# 5. Upload and register adapter
+docker exec iobroker-fmd-dev iobroker upload iobroker-fmd
+
+# 6. Add adapter instance
 docker exec iobroker-fmd-dev iobroker add iobroker-fmd
 
-# 5. Verify
+# 7. Verify
 docker exec iobroker-fmd-dev iobroker logs iobroker-fmd --files=20
 ```
+
+**Note:** Step 4 is a workaround for a known ioBroker issue where third-party GitHub adapters are installed with the wrong directory name. Once the adapter is published to npm (planned for v1.0.0), this step will no longer be needed.
 
 ### Prerequisites
 

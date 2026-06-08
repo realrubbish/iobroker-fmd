@@ -85,7 +85,7 @@ openspec/changes/<name>/
 1. **Commit & Push**
    ```bash
    git add <files>
-   git commit -m "fix: correct entry point..."
+   git commit -m "fix: describe your change"
    git push
    ```
 
@@ -95,19 +95,34 @@ openspec/changes/<name>/
    # or: docker compose restart
    ```
 
-3. **Install Adapter in Container**
+3. **Install Adapter from GitHub**
    ```bash
-   docker exec iobroker-fmd-dev iobroker url https://github.com/realrubbish/iobroker-fmd iobroker-fmd
+   docker exec iobroker-fmd-dev iobroker url https://github.com/realrubbish/iobroker-fmd
    ```
 
-4. **Add Instance (if needed)**
+4. **Fix Adapter Directory (Workaround)**
+   ```bash
+   docker exec iobroker-fmd-dev bash -c "\
+     mkdir -p /opt/iobroker/node_modules/iobroker.iobroker-fmd && \
+     cp -r /opt/iobroker/node_modules/iobroker.fmd/* /opt/iobroker/node_modules/iobroker.iobroker-fmd/ && \
+     chown -R iobroker:iobroker /opt/iobroker/node_modules/iobroker.iobroker-fmd"
+   ```
+
+5. **Upload & Register Adapter**
+   ```bash
+   docker exec iobroker-fmd-dev iobroker upload iobroker-fmd
+   ```
+
+6. **Add Instance**
    ```bash
    docker exec iobroker-fmd-dev iobroker add iobroker-fmd
    ```
 
-5. **Verify**
+7. **Verify**
    ```bash
    docker exec iobroker-fmd-dev iobroker logs iobroker-fmd --files=20
    ```
 
-**Important:** The `iobroker url` command installs directly from the GitHub tarball (latest commit). A local `npm run build` is only needed for local development builds.
+**Note on Directory Workaround:** Due to a known ioBroker issue with third-party GitHub adapters, npm installs as `iobroker.fmd` but ioBroker expects `iobroker.iobroker-fmd`. This workaround creates the correct directory structure.
+
+**Future (v1.0.0):** Once published to npm, only steps 1-3 and 6-7 will be needed.
