@@ -313,9 +313,14 @@ class FmdAdapter extends utils.Adapter {
      * Called when a subscribed state changes
      */
     async onStateChange(id, state) {
-        if (!state || state.ack)
+        // TEMP DEBUG: log every state change at info level to diagnose
+        // why 0_userdata.0.FindMyDevice.ring.* is not firing. Will be
+        // reverted to debug once we know what's happening.
+        this.log.info(`[onStateChange] id=${id} val=${state?.val} ack=${state?.ack}`);
+        if (!state || state.ack) {
+            this.log.info(`[onStateChange] filtered out (state=${!!state}, ack=${state?.ack})`);
             return;
-        this.log.debug(`State change: ${id} = ${state.val}`);
+        }
         // Handle button trigger. Compare against the configured
         // buttonStateId if set, otherwise fall back to the hardcoded
         // Shelly button from the project's vision.
