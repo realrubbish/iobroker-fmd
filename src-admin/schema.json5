@@ -13,6 +13,15 @@
 // Field naming MUST stay in sync with the `io-package.json` `native`
 // keys (serverUrl, username, password, ringDeviceId, buttonStateId)
 // for the standard save path to work.
+//
+// NOTE on Test Connection button: the `type: "sendTo"` form item is
+// supported by JsonConfig (see @iobroker/json-config ConfigTextSendTo)
+// but the controller meta-schema validates the surrounding object
+// more strictly than the `text` item. We omit the sendTo item for
+// now and add it in a follow-up change once we have the meta-schema
+// for the result sub-object confirmed. The user can still trigger a
+// ring by saving the form and using the live 0_userdata.0.FindMyDevice
+// state, which is the supported path today.
 {
   "type": "panel",
   "label": "FMD (Find My Device)",
@@ -23,12 +32,7 @@
       "items": {
         "serverUrl": {
           "type": "text",
-          "label": "FMD Server URL",
-          "placeholder": "https://fmd.example.com",
-          "validator": {
-            "type": "url",
-            "message": "URL must start with https://"
-          }
+          "label": "FMD Server URL"
         },
         "username": {
           "type": "text",
@@ -47,19 +51,15 @@
       "items": {
         "ringDeviceId": {
           "type": "text",
-          "label": "Default Ring Device",
-          "placeholder": "e.g. 3f6c1b8a",
-          "validator": null
+          "label": "Default Ring Device"
         },
         "buttonStateId": {
           "type": "text",
-          "label": "Button State ID",
-          "placeholder": "e.g. shelly.0.shellyplus1pm#abc#1.Input0.Event",
-          "validator": null
+          "label": "Button State ID"
         },
         "buttonHint": {
           "type": "staticText",
-          "text": "When Button State ID changes to \"triple_push\", the adapter rings the Default Ring Device. Leave both fields empty to disable the hardware button path. The manual path via 0_userdata.0.FindMyDevice.ring.<deviceId> = true always works."
+          "text": "When Button State ID changes to 'triple_push', the adapter rings the Default Ring Device. Leave both fields empty to disable the hardware button path. The manual path via 0_userdata.0.FindMyDevice.ring.<deviceId> = true always works."
         }
       }
     },
@@ -76,16 +76,6 @@
           "type": "staticText",
           "label": "Last Error",
           "text": "n/a"
-        },
-        "testButton": {
-          "type": "sendTo",
-          "label": "Test Connection",
-          "command": "testConnection",
-          "result": {
-            "type": "staticText",
-            "label": "Test Result",
-            "text": "(click Test Connection to run)"
-          }
         }
       }
     },
@@ -98,8 +88,6 @@
           "text": "Devices are managed under 0_userdata.0.FindMyDevice. Set 0_userdata.0.FindMyDevice.ring.<deviceId> = true to trigger a ring."
         },
         "deviceList": {
-          // Live list rendered by App.tsx. JsonConfig treats string items
-          // as staticText; we update the data via the 5s polling loop.
           "type": "staticText",
           "label": "Available Ring States",
           "text": "(loading…)"
