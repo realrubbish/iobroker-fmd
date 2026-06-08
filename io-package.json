@@ -41,7 +41,8 @@
     "username": "",
     "password": "",
     "ringDeviceId": "",
-    "buttonStateId": ""
+    "buttonStateId": "",
+    "debugRingTrigger": false
   },
   "schema": {
     "type": "object",
@@ -75,6 +76,12 @@
         "title": "Button State ID",
         "description": "Shelly (or other) state ID whose value drives the hardware-button trigger. Optional — leave empty to disable the hardware button path.",
         "default": ""
+      },
+      "debugRingTrigger": {
+        "type": "boolean",
+        "title": "Debug Ring Trigger",
+        "description": "When true, the adapter logs every onStateChange invocation at info level and runs a startup self-check that creates a __selftest__ ring state and verifies the callback fires. Use this to diagnose the ring trigger path. Off in production to avoid synthetic state mutations.",
+        "default": false
       }
     },
     "required": ["serverUrl", "username", "password"]

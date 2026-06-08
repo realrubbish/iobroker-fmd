@@ -25,6 +25,17 @@ class FmdAdapter extends utils.Adapter {
     private connectionStatus: "disconnected" | "connecting" | "connected" | "error" = "disconnected";
     private devices: Map<string, FmdDevice> = new Map();
 
+    /**
+     * Timestamp at which the most recent `__selftest__` ring state
+     * was received by `onStateChange`, or `undefined` if no
+     * self-check has fired yet. Read by the startup self-check (Task
+     * 3.1 in fix-subscribe-semantics-bug) to determine whether the
+     * subscribe path actually delivers events. Static so the
+     * self-check can read it without holding a reference to the
+     * adapter instance.
+     */
+    public static selfCheckFiredAt: number | undefined = undefined;
+
     // Hardcoded button trigger state ID from vision.md
     private readonly BUTTON_STATE_ID = "shelly.0.shellyplus1pm#cc7b5c837250#1.Input0.Event";
     private readonly BUTTON_TRIGGER = "triple_push";
@@ -331,14 +342,41 @@ class FmdAdapter extends utils.Adapter {
      * Called when a subscribed state changes
      */
     private async onStateChange(id: string, state: ioBroker.State | null | undefined): Promise<void> {
-        if (!state || state.ack) return;
+        // FmdNativeConfig extended with debugRingTrigger (see io-package.json).
+        // The flag is read fresh on every onStateChange invocation, so
+        // toggling it in the Admin-UI and saving the form takes effect
+        // on the NEXT state change without needing an adapter restart.
+        const config = this.config as FmdNativeConfig & { debugRingTrigger?: boolean };
+        const debug = config.debugRingTrigger === true;
+
+        if (debug) {
+            this.log.info(`[onStateChange] id=${id} val=${state?.val} ack=${state?.ack}`);
+        }
+        if (!state || state.ack) {
+            if (debug) {
+                this.log.info(`[onStateChange] filtered out (state=${!!state}, ack=${state?.ack})`);
+            }
+            return;
+        }
+
+        // Self-check sentinel: if a ring state whose ID ends in
+        // "__selftest__" is set, do not dispatch a real ring; just set
+        // a flag the startup self-check can read.
+        const ringMatch = id.match(/^0_userdata\.0\.FindMyDevice\.ring\.(.+)$/);
+        if (ringMatch) {
+            const deviceId = ringMatch[1];
+            if (deviceId === "__selftest__" && state.val === true) {
+                FmdAdapter.selfCheckFiredAt = Date.now();
+                this.log.info(`[self-check] ring state __selftest__ received, marking self-check fired`);
+                return;
+            }
+        }
 
         this.log.debug(`State change: ${id} = ${state.val}`);
 
         // Handle button trigger. Compare against the configured
         // buttonStateId if set, otherwise fall back to the hardcoded
         // Shelly button from the project's vision.
-        const config = this.config as FmdNativeConfig;
         const buttonId = config.buttonStateId && config.buttonStateId.length > 0
             ? config.buttonStateId
             : this.BUTTON_STATE_ID;
@@ -352,7 +390,6 @@ class FmdAdapter extends utils.Adapter {
         }
 
         // Handle ring state changes in 0_userdata.0.FindMyDevice.ring.<deviceId>
-        const ringMatch = id.match(/^0_userdata\.0\.FindMyDevice\.ring\.(.+)$/);
         if (ringMatch && state.val === true) {
             const deviceId = ringMatch[1];
             this.log.info(`Ring state triggered for device: ${deviceId}`);

@@ -9,6 +9,16 @@ declare class FmdAdapter extends utils.Adapter {
     private authTokens?;
     private connectionStatus;
     private devices;
+    /**
+     * Timestamp at which the most recent `__selftest__` ring state
+     * was received by `onStateChange`, or `undefined` if no
+     * self-check has fired yet. Read by the startup self-check (Task
+     * 3.1 in fix-subscribe-semantics-bug) to determine whether the
+     * subscribe path actually delivers events. Static so the
+     * self-check can read it without holding a reference to the
+     * adapter instance.
+     */
+    static selfCheckFiredAt: number | undefined;
     private readonly BUTTON_STATE_ID;
     private readonly BUTTON_TRIGGER;
     constructor(options?: Partial<utils.AdapterOptions>);
