@@ -17,7 +17,19 @@ declare class FmdAdapter extends utils.Adapter {
      */
     private onReady;
     /**
-     * Subscribe to button state for hardware trigger
+     * Run the FMD auth + device fetch in the background.
+     * Called from onReady after the synchronous setup is done.
+     */
+    private connectAndFetchDevices;
+    /**
+     * Subscribe to button state for hardware trigger.
+     *
+     * If the user has set `buttonStateId` in the native config, use
+     * that; otherwise fall back to the hardcoded Shelly button from
+     * the project's vision (used by the original developer). This
+     * means the schema field added in the OpenSpec change
+     * add-admin-ui-index-html finally does something for users who
+     * configure it.
      */
     private subscribeToButtonState;
     /**

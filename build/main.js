@@ -82,14 +82,64 @@ class FmdAdapter extends utils.Adapter {
         });
         // Subscribe to button state for hardware trigger
         this.subscribeToButtonState();
+        // Subscribe to ring states (see Bug B fix in the parent commit).
+        // Without this, setState on 0_userdata.0.FindMyDevice.ring.<id>
+        // never reaches onStateChange and the ring is never triggered.
+        this.subscribeStates("0_userdata.0.FindMyDevice.ring.*");
         this.log.info(`FMD adapter ready. Server: ${config.serverUrl}`);
+        // Run the actual login + device fetch in the background so the
+        // adapter reaches "ready" quickly. Before this fix, onReady
+        // created the FmdAuth object but never called authenticate(),
+        // so no API call ever happened and no device states were
+        // created under 0_userdata.0.FindMyDevice.*.
+        this.connectAndFetchDevices().catch((err) => {
+            this.log.error(`Background connect/fetch failed: ${err}`);
+            this.setConnectionStatus("error", String(err));
+        });
     }
     /**
-     * Subscribe to button state for hardware trigger
+     * Run the FMD auth + device fetch in the background.
+     * Called from onReady after the synchronous setup is done.
+     */
+    async connectAndFetchDevices() {
+        if (!this.fmdAuth)
+            return;
+        const config = this.config;
+        this.setConnectionStatus("connecting");
+        try {
+            const tokens = await this.fmdAuth.authenticate();
+            this.authTokens = tokens;
+            this.fmdApi = new fmd_api_1.FmdApi({
+                serverUrl: config.serverUrl,
+                authTokens: tokens,
+                log: this.log,
+            });
+            await this.fetchDevices();
+            this.setConnectionStatus("connected");
+        }
+        catch (err) {
+            this.log.error(`FMD connect failed: ${err}`);
+            this.setConnectionStatus("error", String(err));
+            throw err;
+        }
+    }
+    /**
+     * Subscribe to button state for hardware trigger.
+     *
+     * If the user has set `buttonStateId` in the native config, use
+     * that; otherwise fall back to the hardcoded Shelly button from
+     * the project's vision (used by the original developer). This
+     * means the schema field added in the OpenSpec change
+     * add-admin-ui-index-html finally does something for users who
+     * configure it.
      */
     subscribeToButtonState() {
-        this.subscribeStates(this.BUTTON_STATE_ID);
-        this.log.info(`Subscribed to button state: ${this.BUTTON_STATE_ID}`);
+        const config = this.config;
+        const buttonId = config.buttonStateId && config.buttonStateId.length > 0
+            ? config.buttonStateId
+            : this.BUTTON_STATE_ID;
+        this.subscribeStates(buttonId);
+        this.log.info(`Subscribed to button state: ${buttonId}`);
     }
     /**
      * Initialize connection status states in ioBroker
@@ -266,10 +316,15 @@ class FmdAdapter extends utils.Adapter {
         if (!state || state.ack)
             return;
         this.log.debug(`State change: ${id} = ${state.val}`);
-        // Handle button trigger
-        if (id === this.BUTTON_STATE_ID && state.val === this.BUTTON_TRIGGER) {
+        // Handle button trigger. Compare against the configured
+        // buttonStateId if set, otherwise fall back to the hardcoded
+        // Shelly button from the project's vision.
+        const config = this.config;
+        const buttonId = config.buttonStateId && config.buttonStateId.length > 0
+            ? config.buttonStateId
+            : this.BUTTON_STATE_ID;
+        if (id === buttonId && state.val === this.BUTTON_TRIGGER) {
             this.log.info("Button triple_push detected, triggering ring");
-            const config = this.config;
             if (config.ringDeviceId) {
                 await this.triggerRing(config.ringDeviceId);
             }
