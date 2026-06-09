@@ -85,7 +85,9 @@ instance row shows three panels:
 └─────────────────────────────────────────────────────┘
 ```
 
-The Status and Devices panels refresh every 5 seconds. See
+The Status and Devices panels refresh every 5 seconds. Use the
+`Test Connection` button in the Status panel to verify your
+credentials without restarting the adapter. See
 [`docs/admin-ui.md`](docs/admin-ui.md) for the build pipeline,
 architecture, and module-federation contract.
 
@@ -198,6 +200,58 @@ If you encounter permission issues:
 2. Check device ID is correct
 3. Verify phone has FMD app installed and configured
 
+#### How ring signing works
+
+When you trigger a ring, the adapter posts a `ring:<device-id>`
+command to the FMD server's `POST /api/v1/command` endpoint. The
+request body carries `Data`, `UnixTime` (milliseconds since epoch),
+and a `CmdSig` header containing an RSA-PSS signature over the
+string `${UnixTime}:${Data}`. The FMD server stores the pending
+command and pushes it to the device app; the device app verifies
+the signature with the user's public key and rings the phone only
+if it matches.
+
+If the adapter logs `Ring command sent to device: <id>` but the
+phone does not ring, the most likely cause is a signature-format
+mismatch (the FMD server accepts the request regardless because it
+only validates the access token on the write side; the device app
+is the only thing that checks the signature). From the dev host,
+run
+
+```bash
+FMD_SERVER_URL=https://fmd.example.com \
+FMD_USERNAME=<user> FMD_PASSWORD=<pw> FMD_DEVICE_ID=<id> \
+  npm run ring:smoke
+```
+
+The script prints `OK server accepted ring command` and exits 0
+on a structurally valid request. Note that this only confirms
+"the server accepted the request" — the device app is the only
+ground truth for "the phone will ring". See
+`scripts/ring-smoke.mjs` for the full list of exit codes and
+limitations.
+
+The ring signing itself uses [`node-forge`](https://github.com/digitalbazaar/forge)
+with all four RSA-PSS parameters pinned explicitly — hash
+(SHA-256), MGF1 hash (SHA-256), salt length (32), and trailer
+field (1) — to match the FMD Android verifier's
+`PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256,
+32, 1)`. If you suspect PSS parameter drift (e.g. after a
+`node-forge` major upgrade or a refactor of `FmdApi.signRequest`),
+run the offline sign-then-verify round-trip:
+
+```bash
+npm run ring:smoke:verify
+```
+
+This generates a throwaway 2048-bit RSA key pair, signs a fixed
+payload with the same code path the adapter uses, then verifies
+the signature with the same PSS profile. It exits 0 on success
+and 1 on a PSS-decoding failure (the latter is what you get when
+any of the four parameters drift between signer and verifier).
+The mode runs entirely offline — no `FMD_*` env vars, no
+network, no credentials.
+
 ### Connection errors
 
 - Check network connectivity to FMD server
@@ -209,6 +263,25 @@ If you encounter permission issues:
 - Passwords are stored using ioBroker's `encryptedNative`
 - Credentials are encrypted at rest
 - Only accessible by this adapter instance
+
+## Dependencies
+
+The adapter has four runtime dependencies:
+
+| Dependency | Purpose | Size note |
+|---|---|---|
+| `@iobroker/adapter-core` | ioBroker adapter framework | — |
+| `axios` | HTTP client for FMD server requests | — |
+| `hash-wasm` | Argon2id KDF for the FMD auth flow | small WASM blob |
+| `node-forge` | RSA-PSS sign+verify with all four PSS knobs exposed (used in `FmdApi.signRequest` and the offline `--verify` smoke) | ~600 kB minified |
+
+`node-forge` is the largest dependency; we use only its
+`pki` / `pss` / `mgf` / `md` / `asn1` / `util` namespaces (roughly
+5% of the library). It is the only pure-JS RSA implementation that
+exposes all four PSS parameters by name — see
+`docs/admin-ui.md` and the `fix-ring-signing-followup` change
+notes for the full rationale. The adapter ships as a tarball via
+`iobroker url` so the install-time cost is the only cost.
 
 ## Changelog
 

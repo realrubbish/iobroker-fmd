@@ -100,6 +100,21 @@ openspec/changes/<name>/
    is the only ground truth for "the phone will ring". Requires
    `npm run build:tsc` to have produced `build/lib/`.
 
+   For ring-signing changes specifically, run the offline
+   sign-then-verify round-trip first — no credentials, no
+   network, no FMD server required:
+   ```bash
+   npm run ring:smoke:verify
+   ```
+   It generates a throwaway 2048-bit RSA key pair, signs a
+   fixed payload with the same `signRingPayload` code path the
+   adapter uses, and verifies it locally with the same PSS
+   profile. Exit 0 on a clean round-trip; exit 1 on a PSS
+   parameter desync (the kind of thing that breaks "the phone
+   rings" silently). Run this *before* `npm run ring:smoke` so
+   a broken signature shape is caught without burning a live
+   round-trip on the FMD server.
+
 1. **Commit & Push**
    ```bash
    git add <files>

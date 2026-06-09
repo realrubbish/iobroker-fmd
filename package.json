@@ -19,7 +19,8 @@
   "dependencies": {
     "@iobroker/adapter-core": "^3.3.2",
     "axios": "^1.7.9",
-    "hash-wasm": "^4.12.0"
+    "hash-wasm": "^4.12.0",
+    "node-forge": "^1.4.0"
   },
   "devDependencies": {
     "@emotion/cache": "^11.13.0",
@@ -48,6 +49,8 @@
     "build:admin": "node scripts/build-admin.mjs",
     "dev:admin": "vite --config src-admin/vite.config.ts",
     "auth:smoke": "node scripts/auth-smoke.mjs",
+    "ring:smoke": "node scripts/ring-smoke.mjs",
+    "ring:smoke:verify": "node scripts/ring-smoke.mjs --verify",
     "postbuild": "node scripts/validate-entrypoint.js",
     "watch": "tsc --build --watch",
     "test": "npm run build:tsc && npm run test:unit",

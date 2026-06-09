@@ -1,0 +1,43 @@
+/opsx:propose add-admin-ui-index-html
+
+Goal: ship a working Admin-UI config form for `iobroker-fmd` under ioBroker.admin 7.7.22 (the new React SPA). Today, clicking the wrench icon on the instance row triggers `GET /adapter/iobroker-fmd/index.html?0&newReact=true&0&react=light 404` because the adapter ships no `index.html`.
+
+Context (full investigation in `docs/admin-ui-investigation-2026-06-08.md`):
+
+- ioBroker.admin 7.7.22 always loads `index.html` (or `index_m.html` for materialize) into an iframe when the user clicks the wrench on an instance. The `adminUI.config = "json"` flag does NOT skip the iframe; it only switches the data source for the Instances list and the sidebar adapter tab.
+- `admin/settings.json` exists and is reachable at `http://localhost:8081/adapter/iobroker-fmd/admin/settings.json` (HTTP 200), but it is not consulted by the wrench pop-up.
+- Reference: `iobroker.backitup` ships a full `tab_m.html` (CRA build) and a `jsonConfig.json5` and sets `adminUI.tab = "materialize"` to handle the same situation. We are not copying that build, but we are using the same pattern.
+- The current `admin/settings.json` defines three tabs (Connection, Connection Status, Devices). The Status and Devices tabs read runtime state (`info.connection`, `info.lastError`, `0_userdata.0.FindMyDevice.*`). The OpenSpec change must decide what to do with those tabs — keep them in `settings.json` and have `index.html` bootstrap that file, or migrate fully to `jsonConfig.json5` with a flat form.
+
+Capabilities to write specs for:
+
+- `admin-ui`: a new capability covering how the Admin-UI is built and rendered. Specs must answer:
+  - Where does the form come from (`settings.json` vs `jsonConfig.json5`)?
+  - What tabs / fields are visible?
+  - What runtime data (connection state, last error, device list, ring states) is shown and how is it kept live?
+  - What happens to the `Test Connection` button?
+- `admin-ui-delivery`: a sub-capability or requirement under `admin-ui` covering which files must be present in `admin/` (`index.html`, `index_m.html`, `settings.json`, `jsonConfig.json5`, asset manifest, favicon, etc.) and which `io-package.json` `adminUI` flags must be set (`config`, `tab`).
+
+Decisions to make in the proposal:
+
+1. Tabs vs flat form. Tabs are nicer but require keeping `settings.json` as the source of truth AND writing a `index.html` that bootstraps it (significant work). Flat form is jsonConfig-native but drops the Status and Devices panels.
+2. Do we keep `ringDeviceId` and `buttonStateId` as native config fields? They are referenced in `src/main.ts` lines 13-14 and 286-287 but missing from the `io-package.json` schema. The change should add them to the schema (or drop the code path).
+3. Build tooling. The new `index.html` will be a React + Vite (or similar) app. It will use module-federation to load `@iobroker/json-config` and the admin runtime from `node_modules/iobroker.admin/adminWww/`. Pick a build tool. Pick a license. Decide whether to vendor any admin-side assets or rely fully on the host admin's bundle.
+
+Out of scope (handle in separate changes):
+
+- The `singleInstance: true` enforcement in `iobroker add` (currently silently creates a second instance).
+- The `iobroker upload` not refreshing `iobroker-data/files/<adapter>/io-package.json` (server-side bug, not ours).
+- The `package.json` `name` field being `iobroker.fmd` instead of `iobroker-fmd` (workaround-name drift).
+
+Tasks the OpenSpec change should include:
+
+1. Decide the data model: keep `admin/settings.json` as source of truth + bootstrap from `index.html`, OR migrate to `admin/jsonConfig.json5` and drop `settings.json`. Document the decision in `proposal.md`.
+2. Set up the build: package.json scripts, tsconfig, Vite config (or whatever tool), `index.html` template, React entry point.
+3. Implement the form: load `settings.json` (or `jsonConfig.json5`), render tabs and fields, wire to the ioBroker object update API.
+4. Wire `io-package.json` `adminUI` flags and add `ringDeviceId` and `buttonStateId` to the schema.
+5. Update `CLAUDE.md` deployment workflow to include building the admin assets and the extra `iobroker-data/files/.../io-package.json` sync step.
+6. Update `README.md` and `docs/` accordingly.
+7. Test: in the existing Docker dev container, build, copy, upload, hard-reload admin, click the wrench, verify the form appears, enter credentials, save, restart instance, send a ring command, verify in `iobroker logs iobroker-fmd`.
+
+Format the change as `add-admin-ui-index-html` with the artifacts in `openspec/changes/add-admin-ui-index-html/`.
