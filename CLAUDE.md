@@ -82,6 +82,24 @@ openspec/changes/<name>/
 
 **For every change — always follow this exact sequence:**
 
+0. **Smoke test the auth/ring path from the dev host (recommended)**
+   Before going through the full Docker rebuild, verify the auth and
+   ring code paths against a real FMD server from your dev host:
+   ```bash
+   FMD_SERVER_URL=https://fmd.example.com \
+   FMD_USERNAME=<user> FMD_PASSWORD=<pw> \
+     npm run auth:smoke
+   # and for ring changes:
+   FMD_SERVER_URL=https://fmd.example.com \
+   FMD_USERNAME=<user> FMD_PASSWORD=<pw> FMD_DEVICE_ID=<id> \
+     npm run ring:smoke
+   ```
+   Both scripts read credentials from `process.env`, exit 0 on
+   success, and print a short status line. The ring smoke script
+   confirms "the server accepted the request" only — the device app
+   is the only ground truth for "the phone will ring". Requires
+   `npm run build:tsc` to have produced `build/lib/`.
+
 1. **Commit & Push**
    ```bash
    git add <files>
