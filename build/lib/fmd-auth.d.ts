@@ -3,6 +3,15 @@
  */
 export interface AuthTokens {
     accessToken: string;
+    /**
+     * The user's RSA private key, base64-encoded PKCS#8 DER. This is
+     * the DECRYPTED form: the FMD server returns the key wrapped (salt
+     * + AES-GCM ciphertext, all base64) and `getPrivateKey()` does the
+     * Argon2id + AES-GCM unwrap before storing it here. Downstream
+     * code (`FmdApi.signRequest` / `signRingPayload`) expects the
+     * base64-DER body of the PKCS#8 PrivateKeyInfo, with no PEM
+     * envelope.
+     */
     privateKey: string;
     expiresAt?: number;
 }
@@ -129,13 +138,58 @@ export declare class FmdAuth {
      */
     login(passwordHash: string): Promise<string>;
     /**
-     * Step 4: Retrieve the private key (PEM) using the access token.
+     * Step 4: Retrieve the private key (wrapped) using the access
+     * token, then unwrap it with the user's password.
      *
      * POST /key
      *   body: {"IDT": "<accessToken>"}
-     *   response: {"IDT": "<accessToken>", "Data": "<pem-string>"}
+     *   response: {"IDT": "<accessToken>", "Data": "<wrapped-key-base64>"}
+     *
+     * The server-returned `Data` is NOT a raw PEM and NOT a raw
+     * PKCS#8 DER. It is the FMD Android client's wrap format
+     * (`CypherUtils.encryptPrivateKeyWithPassword`, verified against
+     * the upstream source at
+     * `/Users/tschnurre/external-GIT/fmd-android/.../utils/CypherUtils.java`,
+     * lines 230-257):
+     *
+     *   wrapped = base64( salt || IV || ct || tag )
+     *     where
+     *       salt = 16 random bytes (Argon2 salt)
+     *       IV   = 12 random bytes (AES-GCM nonce)
+     *       ct   = AES-256-GCM ciphertext of the PEM-encoded PKCS#8
+     *       tag  = 16-byte GCM authentication tag (appended by Java's
+     *              Cipher when AES/GCM/NoPadding is used)
+     *
+     *   AES key = Argon2id(
+     *     password = "context:asymmetricKeyWrap" + userPassword,
+     *     salt     = salt,
+     *     t = 1, p = 4, m = 131072 KiB, hashLen = 32
+     *   )
+     *
+     * The decrypted plaintext is the PEM
+     *   -----BEGIN PRIVATE KEY-----
+     *   <base64 PKCS#8 PrivateKeyInfo>
+     *   -----END PRIVATE KEY-----
+     *
+     * We strip the PEM envelope and return the inner base64 string —
+     * that is the format `FmdApi.signRequest` / `signRingPayload`
+     * expects on the way in.
      */
-    getPrivateKey(accessToken: string): Promise<string>;
+    getPrivateKey(accessToken: string, password: string): Promise<string>;
+    /**
+     * Decrypt the FMD-server-returned wrapped private key blob.
+     *
+     * The wrap format is described in detail on `getPrivateKey`. This
+     * helper does the Argon2id + AES-256-GCM unwrap and returns the
+     * PEM string (envelope included; the caller strips it).
+     *
+     * Constants match the FMD Android client's `CypherUtils` exactly:
+     *   ARGON2_SALT_LENGTH = 16, AES_GCM_IV_SIZE_BYTES = 12,
+     *   AES_GCM_TAG_SIZE_BYTES = 16, AES_GCM_KEY_SIZE_BYTES = 32,
+     *   ARGON2 params: t=1, p=4, m=131072 KiB, hashLen=32,
+     *   context = "context:asymmetricKeyWrap".
+     */
+    private decryptPrivateKey;
     /**
      * Refresh access token using private key.
      *

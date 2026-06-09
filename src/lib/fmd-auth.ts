@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from "axios";
+import { createDecipheriv } from "crypto";
 import { argon2id } from "hash-wasm";
 
 /**
@@ -6,6 +7,15 @@ import { argon2id } from "hash-wasm";
  */
 export interface AuthTokens {
     accessToken: string;
+    /**
+     * The user's RSA private key, base64-encoded PKCS#8 DER. This is
+     * the DECRYPTED form: the FMD server returns the key wrapped (salt
+     * + AES-GCM ciphertext, all base64) and `getPrivateKey()` does the
+     * Argon2id + AES-GCM unwrap before storing it here. Downstream
+     * code (`FmdApi.signRequest` / `signRingPayload`) expects the
+     * base64-DER body of the PKCS#8 PrivateKeyInfo, with no PEM
+     * envelope.
+     */
     privateKey: string;
     expiresAt?: number;
 }
@@ -110,9 +120,12 @@ export class FmdAuth {
             const accessToken = await this.login(passwordHash);
             this.config.log.debug(`Received access token (${accessToken.length} chars)`);
 
-            // Step 4: Retrieve the private key (PEM).
-            const privateKey = await this.getPrivateKey(accessToken);
-            this.config.log.debug(`Received private key (${privateKey.length} chars)`);
+            // Step 4: Retrieve the private key (wrapped) and unwrap
+            // it with the user's password (see getPrivateKey jsdoc for
+            // the wrap-format details). What we store is the
+            // base64-DER PKCS#8 body, ready for signRingPayload.
+            const privateKey = await this.getPrivateKey(accessToken, this.config.password);
+            this.config.log.debug(`Decrypted private key (${privateKey.length} chars b64-DER)`);
 
             // Cache for the session. The 1-hour expiry is a conservative
             // default; the FMD server caps at 1 week (see
@@ -272,13 +285,44 @@ export class FmdAuth {
     }
 
     /**
-     * Step 4: Retrieve the private key (PEM) using the access token.
+     * Step 4: Retrieve the private key (wrapped) using the access
+     * token, then unwrap it with the user's password.
      *
      * POST /key
      *   body: {"IDT": "<accessToken>"}
-     *   response: {"IDT": "<accessToken>", "Data": "<pem-string>"}
+     *   response: {"IDT": "<accessToken>", "Data": "<wrapped-key-base64>"}
+     *
+     * The server-returned `Data` is NOT a raw PEM and NOT a raw
+     * PKCS#8 DER. It is the FMD Android client's wrap format
+     * (`CypherUtils.encryptPrivateKeyWithPassword`, verified against
+     * the upstream source at
+     * `/Users/tschnurre/external-GIT/fmd-android/.../utils/CypherUtils.java`,
+     * lines 230-257):
+     *
+     *   wrapped = base64( salt || IV || ct || tag )
+     *     where
+     *       salt = 16 random bytes (Argon2 salt)
+     *       IV   = 12 random bytes (AES-GCM nonce)
+     *       ct   = AES-256-GCM ciphertext of the PEM-encoded PKCS#8
+     *       tag  = 16-byte GCM authentication tag (appended by Java's
+     *              Cipher when AES/GCM/NoPadding is used)
+     *
+     *   AES key = Argon2id(
+     *     password = "context:asymmetricKeyWrap" + userPassword,
+     *     salt     = salt,
+     *     t = 1, p = 4, m = 131072 KiB, hashLen = 32
+     *   )
+     *
+     * The decrypted plaintext is the PEM
+     *   -----BEGIN PRIVATE KEY-----
+     *   <base64 PKCS#8 PrivateKeyInfo>
+     *   -----END PRIVATE KEY-----
+     *
+     * We strip the PEM envelope and return the inner base64 string —
+     * that is the format `FmdApi.signRequest` / `signRingPayload`
+     * expects on the way in.
      */
-    public async getPrivateKey(accessToken: string): Promise<string> {
+    public async getPrivateKey(accessToken: string, password: string): Promise<string> {
         try {
             const response = await this.httpClient.post<{ IDT: string; Data: string }>(
                 "/key",
@@ -287,11 +331,100 @@ export class FmdAuth {
             if (!response.data?.Data) {
                 throw new Error("Private key response missing Data field");
             }
-            return response.data.Data;
+            const wrappedKey = response.data.Data;
+            const pem = await this.decryptPrivateKey(wrappedKey, password);
+            // Strip the PEM envelope; keep only the base64-DER body so
+            // signRingPayload can feed it straight into
+            // forge.util.decode64 → forge.asn1.fromDer.
+            const b64Body = pem
+                .replace(/-----BEGIN PRIVATE KEY-----/, "")
+                .replace(/-----END PRIVATE KEY-----/, "")
+                .replace(/\s/g, "");
+            if (b64Body.length === 0) {
+                throw new Error("Decrypted PEM is empty (after envelope strip)");
+            }
+            return b64Body;
         } catch (err) {
             const errorMsg = err instanceof Error ? err.message : String(err);
             this.config.log.error(`Failed to get private key: ${errorMsg}`);
             throw new Error(`Failed to get private key: ${errorMsg}`);
+        }
+    }
+
+    /**
+     * Decrypt the FMD-server-returned wrapped private key blob.
+     *
+     * The wrap format is described in detail on `getPrivateKey`. This
+     * helper does the Argon2id + AES-256-GCM unwrap and returns the
+     * PEM string (envelope included; the caller strips it).
+     *
+     * Constants match the FMD Android client's `CypherUtils` exactly:
+     *   ARGON2_SALT_LENGTH = 16, AES_GCM_IV_SIZE_BYTES = 12,
+     *   AES_GCM_TAG_SIZE_BYTES = 16, AES_GCM_KEY_SIZE_BYTES = 32,
+     *   ARGON2 params: t=1, p=4, m=131072 KiB, hashLen=32,
+     *   context = "context:asymmetricKeyWrap".
+     */
+    private async decryptPrivateKey(wrappedB64: string, password: string): Promise<string> {
+        const ARGON2_SALT_LENGTH = 16;
+        const ARGON2_HASH_LENGTH = 32;
+        const AES_GCM_IV_SIZE_BYTES = 12;
+        const AES_GCM_TAG_SIZE_BYTES = 16;
+        const CONTEXT_ASYM_KEY_WRAP = "context:asymmetricKeyWrap";
+
+        // base64 → bytes. The server uses standard (not URL-safe) base64
+        // and adds padding; our base64ToBytes tolerates both alphabets
+        // and missing padding, so it works here too.
+        const concatBytes = this.base64ToBytes(wrappedB64);
+        const minLen = ARGON2_SALT_LENGTH + AES_GCM_IV_SIZE_BYTES + AES_GCM_TAG_SIZE_BYTES;
+        if (concatBytes.length < minLen) {
+            throw new Error(
+                `Wrapped private key too short: ${concatBytes.length} bytes (need at least ${minLen})`,
+            );
+        }
+
+        // Split: salt | ciphertext-with-iv-and-tag
+        const saltBytes = concatBytes.subarray(0, ARGON2_SALT_LENGTH);
+        const aesBlob = concatBytes.subarray(ARGON2_SALT_LENGTH);
+
+        // Derive AES key with Argon2id (different context than the
+        // login flow's "context:loginAuthentication" — see the
+        // CypherUtils comment about "hacky key separation"). hash-wasm's
+        // outputType "binary" gives us the raw 32 hash bytes (no PHC
+        // wrapper) which is what AES-256-GCM wants.
+        const aesKey = (await argon2id({
+            password: CONTEXT_ASYM_KEY_WRAP + password,
+            salt: saltBytes,
+            parallelism: 4,
+            iterations: 1,
+            memorySize: 131072,
+            hashLength: ARGON2_HASH_LENGTH,
+            outputType: "binary",
+        })) as Uint8Array;
+
+        // Split the AES blob: IV (first 12) | ciphertext | tag (last 16).
+        // Node's createDecipheriv wants the IV at construction, the
+        // ciphertext via update(), and the tag via setAuthTag() —
+        // Java's Cipher does it all in one doFinal() with the tag
+        // glued onto the ciphertext, which is the form we receive.
+        const ivBytes = aesBlob.subarray(0, AES_GCM_IV_SIZE_BYTES);
+        const ctAndTag = aesBlob.subarray(AES_GCM_IV_SIZE_BYTES);
+        const ctOnly = ctAndTag.subarray(0, ctAndTag.length - AES_GCM_TAG_SIZE_BYTES);
+        const tag = ctAndTag.subarray(ctAndTag.length - AES_GCM_TAG_SIZE_BYTES);
+
+        try {
+            const decipher = createDecipheriv("aes-256-gcm", Buffer.from(aesKey), Buffer.from(ivBytes));
+            decipher.setAuthTag(Buffer.from(tag));
+            const plaintext = Buffer.concat([decipher.update(Buffer.from(ctOnly)), decipher.final()]);
+            return plaintext.toString("utf8");
+        } catch (err) {
+            // GCM auth failure throws "Unsupported state or unable to
+            // authenticate data" — usually means the password is
+            // wrong. Surface it cleanly; the adapter's lastError will
+            // get a meaningful message instead of a stack trace.
+            const errorMsg = err instanceof Error ? err.message : String(err);
+            throw new Error(
+                `AES-GCM decrypt failed (likely wrong password or corrupted wrapped key): ${errorMsg}`,
+            );
         }
     }
 

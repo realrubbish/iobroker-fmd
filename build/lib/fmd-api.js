@@ -110,14 +110,19 @@ class FmdApi {
         const signature = await this.signRequest(payload);
         this.config.log.debug(`ring: signed payload length=${payload.length} sig=${signature.slice(0, 8)}...`);
         try {
+            // The FMD server's POST /command (apiv1.go:339-353) reads
+            // IDT, Data, UnixTime and CmdSig all from the JSON body
+            // (struct commandData{IDT, Data, UnixTime, CmdSig}). The
+            // CheckAccessTokenAndGetUser call looks up data.IDT — the
+            // access token MUST go into the body, not the header,
+            // otherwise the server replies 401 ERR_ACCESS_TOKEN_INVALID.
+            // The CmdSig field is the base64 RSA-PSS signature over
+            // "UnixTime:Data" (built in signRingPayload).
             await this.httpClient.post("/api/v1/command", {
+                IDT: this.config.authTokens.accessToken,
                 Data: command,
                 UnixTime: unixTime,
-            }, {
-                headers: {
-                    IDT: this.config.authTokens.accessToken,
-                    CmdSig: signature,
-                },
+                CmdSig: signature,
             });
             this.config.log.info(`Ring command sent to device: ${deviceId}`);
         }
