@@ -202,21 +202,44 @@ If you encounter permission issues:
 
 #### How ring signing works
 
-When you trigger a ring, the adapter posts a `ring:<device-id>`
-command to the FMD server's `POST /api/v1/command` endpoint. The
-request body carries `Data`, `UnixTime` (milliseconds since epoch),
-and a `CmdSig` header containing an RSA-PSS signature over the
-string `${UnixTime}:${Data}`. The FMD server stores the pending
-command and pushes it to the device app; the device app verifies
-the signature with the user's public key and rings the phone only
-if it matches.
+When you trigger a ring, the adapter posts the bare command string
+`ring` to the FMD server's `POST /api/v1/command` endpoint. The
+request body carries `IDT` (access token), `Data` (the command),
+`UnixTime` (milliseconds since epoch), and `CmdSig` (an RSA-PSS
+signature over the string `${UnixTime}:${Data}`) — **all four
+fields go in the JSON body, not in HTTP headers**. The FMD server
+stores the pending command and pushes a wakeup ping via ntfy to the
+device app. The device app then polls `GET /api/v1/command`,
+verifies the signature with the user's public key, parses the
+command, and rings the phone only if everything matches.
+
+**The command keyword is `ring`, not `ring:<deviceId>`.** The FMD
+Android client routes commands per access-token-owner (the device
+is implicit) and its `CommandParser` matches the second
+space-separated token against each registered keyword. Sending
+`ring:<id>` results in no keyword match and is silently dropped —
+the server returns 200 OK, the phone wakes, polls, and the parser
+finds nothing to dispatch.
 
 If the adapter logs `Ring command sent to device: <id>` but the
-phone does not ring, the most likely cause is a signature-format
-mismatch (the FMD server accepts the request regardless because it
-only validates the access token on the write side; the device app
-is the only thing that checks the signature). From the dev host,
-run
+phone does not ring, walk the diagnostic ladder:
+
+1. **Run the offline self-test** (`npm run ring:smoke:verify`) to
+   confirm the local sign-then-verify round-trip succeeds. If this
+   fails, the PSS parameters have drifted.
+2. **Run the live smoke** (`npm run ring:smoke`) against your FMD
+   server. Exit 0 means the server accepted the request and the
+   command landed in the queue.
+3. **Check the ntfy push URL** is configured on your account and
+   the phone's UnifiedPush distributor is connected. The server
+   sends a `{"message": "fmd app wakeup"}` ping; if the phone never
+   wakes, the push channel is broken (most often Akku-Optimierung
+   killing the app or a missing UnifiedPush distributor).
+4. **Check the device app's debug log** for
+   `Failed to verify the signature` or
+   `TriggerWordMismatch` / no-keyword-match notices.
+
+From the dev host, run the live smoke as:
 
 ```bash
 FMD_SERVER_URL=https://fmd.example.com \

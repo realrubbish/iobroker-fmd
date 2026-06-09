@@ -115,6 +115,14 @@ The adapter must implement the multi-step FMD authentication:
 interface FmdAuth {
     salt: string;
     accessToken: string;
+    // Base64-encoded PKCS#8 DER body of the user's RSA private key,
+    // ALREADY DECRYPTED. The FMD server's /key endpoint returns the
+    // key in the FMD Android client's wrap format:
+    //   base64(salt[16] || IV[12] || AES-256-GCM-ct || tag[16])
+    // with the AES key derived via
+    //   Argon2id("context:asymmetricKeyWrap" + password, salt,
+    //            t=1, p=4, m=131072 KiB, hashLen=32)
+    // FmdAuth.decryptPrivateKey does the unwrap before storing.
     privateKey: string;
 }
 
@@ -123,23 +131,37 @@ async function authenticate(
     username: string,
     password: string
 ): Promise<FmdAuth> {
-    // 1. Request salt from server
-    // 2. Derive key using Argon2id
-    // 3. Exchange for access token
-    // 4. Retrieve and decrypt private key
+    // 1. POST /salt          → 16-byte salt (URL-safe b64)
+    // 2. Argon2id(password + "context:loginAuthentication", salt, ...)
+    //    → PHC-encoded PasswordHash
+    // 3. PUT /requestAccess  → access token (32 chars)
+    // 4. POST /key           → wrapped private key
+    //                          → unwrap with the user password
 }
 ```
 
 ### 5.2 API Request Signing
 
-FMD requires RSA-PSS signed requests:
+FMD requires RSA-PSS signed requests. The signing uses `node-forge`
+with all four PSS parameters pinned explicitly (hash=SHA-256,
+MGF1=SHA-256, saltLength=32, trailer=1), matching the FMD Android
+verifier's `PSSParameterSpec("SHA-256", "MGF1",
+MGF1ParameterSpec.SHA256, 32, 1)`. See
+`openspec/specs/fmd-ring-signing/spec.md` for the canonical
+requirement and `npm run ring:smoke:verify` for the offline
+sign-then-verify self-test.
+
+The signed string is **`${UnixTime}:${Data}`** (Unix milliseconds,
+literal ASCII colon, command). The server's `commandData` struct
+(backend/apiv1.go:44) reads `IDT`, `Data`, `UnixTime` and `CmdSig`
+all from the JSON body — **NOT** from HTTP headers:
 
 ```typescript
 interface FmdRequest {
-    IDT: string;           // Access token
-    Data: string;          // Command
+    IDT: string;           // Access token — in BODY, not header
+    Data: string;          // Command (e.g. "ring", "locate", "lock")
     UnixTime: number;      // Unix timestamp in ms
-    CmdSig: string;        // Base64 RSA signature
+    CmdSig: string;        // Base64 RSA-PSS signature of `${UnixTime}:${Data}`
 }
 ```
 
@@ -149,17 +171,25 @@ interface FmdRequest {
 async function sendRingCommand(
     auth: FmdAuth,
     serverUrl: string,
-    deviceId: string
+    deviceId: string   // informational only; FMD routes per access-token-owner
 ): Promise<void> {
-    const command = `ring:${deviceId}`;
-    const signature = await signRequest(command, auth.privateKey);
+    // The command keyword is the bare string "ring", NOT
+    // "ring:<deviceId>". The FMD Android client's
+    // ServerCommandDownloader.onResponse prepends the user's
+    // configured trigger word and hands the result to CommandParser,
+    // which matches the second space-separated token against each
+    // Command.keyword. RingCommand.keyword is "ring" (RingCommand.kt:19).
+    // Sending "ring:<id>" matches no keyword and is silently dropped
+    // by the device app — server returns 200 OK, phone never rings.
+    const command = "ring";
+    const unixTime = Date.now();
+    const signature = await signRequest(`${unixTime}:${command}`, auth.privateKey);
 
     await axios.post(`${serverUrl}/api/v1/command`, {
+        IDT: auth.accessToken,    // in body, not header
         Data: command,
-        UnixTime: Date.now(),
-        CmdSig: signature
-    }, {
-        headers: { 'IDT': auth.accessToken }
+        UnixTime: unixTime,
+        CmdSig: signature,
     });
 }
 ```
