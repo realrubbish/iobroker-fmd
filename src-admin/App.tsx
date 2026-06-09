@@ -11,6 +11,17 @@
  *    the same interval and renders a plain-text list of the IDs.
  *  - Save is handled by JsonConfig's built-in native-config flow; we
  *    only need to seed `data` with the existing config on mount.
+ *
+ * Test Connection (add-test-connection-button):
+ *  - We render the button as a real React `<button>` outside the
+ *    JsonConfig widget tree, because `JsonConfig`'s built-in
+ *    `type: "sendTo"` widget surfaces the reply via `window.alert` and
+ *    has no callback hook to feed our `testResult` staticText line.
+ *  - The reply is shaped `{ success, message }` or `{ error }` — see
+ *    `src/main.ts` `onMessage.testConnection`. We format it as
+ *    "OK – connected at HH:MM:SS" / "Failed – <reason> at HH:MM:SS".
+ *  - The 5s poll loop clears a stale "OK" line on a fresh
+ *    `info.lastError` (see D3 step 4 of the design).
  */
 import React from "react";
 import { JsonConfig } from "@iobroker/json-config";
@@ -19,12 +30,19 @@ import jsonConfigSchema from "./schema.json5";
 import { createAdapterSocket, type AdapterSocket } from "./socket";
 
 const POLL_INTERVAL_MS = 5_000;
+const TEST_RESULT_PLACEHOLDER = "(click Test Connection to run)";
 
 interface AppProps {
     adapterName: string;
     instance: number;
     themeName: IobTheme["name"];
     themeType: IobTheme["themeType"];
+}
+
+interface TestConnectionReply {
+    success?: boolean;
+    message?: string;
+    error?: string;
 }
 
 export default function App({ adapterName, instance, themeName, themeType }: AppProps) {
@@ -36,8 +54,14 @@ export default function App({ adapterName, instance, themeName, themeType }: App
     // call `updateData` whenever the user changes a field. Live panels
     // (status + devices) overwrite their own keys on each poll.
     const [data, setData] = React.useState<Record<string, unknown>>({});
-    const [testResult, setTestResult] = React.useState<string>("(click Test Connection to run)");
+    const [testResult, setTestResult] = React.useState<string>(TEST_RESULT_PLACEHOLDER);
+    const [testRunning, setTestRunning] = React.useState<boolean>(false);
     const [deviceList, setDeviceList] = React.useState<string>("(loading…)");
+
+    // Track the last observed lastError value so the poll loop can
+    // detect a fresh empty→non-empty transition and clear a stale "OK"
+    // testResult line (D3 step 4).
+    const lastErrorRef = React.useRef<string | null>(null);
 
     // Seed: load the existing native config and the initial connection
     // status. The form becomes editable from the first paint.
@@ -73,6 +97,14 @@ export default function App({ adapterName, instance, themeName, themeType }: App
                 const conn = infoStates[`system.adapter.${adapterName}.${instance}.info.connection`];
                 const err = infoStates[`system.adapter.${adapterName}.${instance}.info.lastError`];
                 if (cancelled) return;
+                const errVal = err ? (typeof err.val === "string" ? err.val : null) : null;
+                // Fresh error transition: clear a stale "OK" line so the
+                // user is not misled by a successful test from minutes
+                // ago while the live state is now failing.
+                if (errVal && errVal.length > 0 && lastErrorRef.current !== errVal) {
+                    setTestResult(TEST_RESULT_PLACEHOLDER);
+                }
+                lastErrorRef.current = errVal;
                 setData((prev) => ({
                     ...prev,
                     connectionState: {
@@ -83,7 +115,7 @@ export default function App({ adapterName, instance, themeName, themeType }: App
                                 : "disconnected"
                             : "unknown",
                     },
-                    lastError: { val: err ? err.val : null },
+                    lastError: { val: errVal },
                 }));
 
                 // Devices panel: list of ring state IDs
@@ -112,18 +144,36 @@ export default function App({ adapterName, instance, themeName, themeType }: App
         };
     }, [adapterName, instance, socket]);
 
-    // Subscribe to testConnection sendTo responses. jsonConfig's
-    // `type: "sendTo"` widget calls `socket.sendTo(instance, command, data)`
-    // and renders the response. We just forward — no extra wiring.
-    React.useEffect(() => {
-        if (!socket.isLive) return;
-        // The result text is updated by JsonConfig's render of the
-        // `result` widget, so this effect is a no-op; the spec requires
-        // us to verify the button works (Task 4.4), which the
-        // jsonConfig.sendTo widget does out of the box once `socket` is
-        // a working sendTo wrapper.
-        setTestResult("(click Test Connection to run)");
-    }, [socket]);
+    // Handle the Test Connection button click. We do not use
+    // JsonConfig's `type: "sendTo"` widget (it shows the reply via
+    // `window.alert` and has no callback), so we wire the call to
+    // `socket.sendTo` ourselves and format the reply for the
+    // `Last Test Result` staticText line in the status panel.
+    const handleTestConnection = React.useCallback(async () => {
+        if (!socket.isLive || testRunning) return;
+        setTestRunning(true);
+        const now = new Date().toLocaleTimeString();
+        try {
+            const reply = (await socket.sendTo(
+                `${adapterName}.${instance}`,
+                "testConnection",
+                {},
+            )) as TestConnectionReply | null;
+            if (reply && reply.error) {
+                setTestResult(`Failed – ${reply.error} at ${now}`);
+            } else if (reply && reply.success) {
+                setTestResult(`OK – connected at ${now}`);
+            } else {
+                // Unexpected shape: surface whatever the adapter sent so
+                // the user (and we) can debug.
+                setTestResult(`Failed – unexpected reply at ${now}`);
+            }
+        } catch (err) {
+            setTestResult(`Failed – ${err instanceof Error ? err.message : String(err)} at ${now}`);
+        } finally {
+            setTestRunning(false);
+        }
+    }, [adapterName, instance, socket, testRunning]);
 
     // Build a minimal IobTheme. The host admin already styles the iframe
     // parent; JsonConfig only needs the name/type fields to be valid.
@@ -161,6 +211,7 @@ export default function App({ adapterName, instance, themeName, themeType }: App
                 data={{
                     ...data,
                     deviceList: { val: deviceList },
+                    testResult: { val: testResult },
                 }}
                 updateData={(newData) =>
                     setData((prev) => ({ ...prev, ...newData }))
@@ -171,22 +222,31 @@ export default function App({ adapterName, instance, themeName, themeType }: App
                 }}
                 schema={jsonConfigSchema as never}
             />
+            {/* Visible Test Connection button — rendered here (not as
+                a JsonConfig `type: "sendTo"` item) so we can format the
+                reply into the `testResult` staticText line with a
+                timestamp. */}
+            <div style={{ marginTop: 12 }}>
+                <button
+                    type="button"
+                    onClick={handleTestConnection}
+                    disabled={!socket.isLive || testRunning}
+                    aria-live="polite"
+                    style={{
+                        padding: "6px 14px",
+                        fontSize: 14,
+                        cursor: testRunning ? "wait" : "pointer",
+                    }}
+                >
+                    {testRunning ? "Testing…" : "Test Connection"}
+                </button>
+            </div>
             {!socket.isLive && (
                 <p style={{ color: "#a00", marginTop: 12 }}>
                     Live data unavailable: the host admin's <code>socket.io.js</code> did not load.
                     The form below is read-only.
                 </p>
             )}
-            {/* The result of the jsonConfig `sendTo` widget is rendered
-                inline by JsonConfig itself; we surface the test button's
-                last response for the user to see in case JsonConfig's
-                default placement is hidden. */}
-            <div
-                aria-live="polite"
-                style={{ position: "absolute", left: -9999, top: -9999 }}
-            >
-                {testResult}
-            </div>
         </div>
     );
 }

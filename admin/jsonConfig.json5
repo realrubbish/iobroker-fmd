@@ -14,14 +14,12 @@
 // keys (serverUrl, username, password, ringDeviceId, buttonStateId)
 // for the standard save path to work.
 //
-// NOTE on Test Connection button: the `type: "sendTo"` form item is
-// supported by JsonConfig (see @iobroker/json-config ConfigTextSendTo)
-// but the controller meta-schema validates the surrounding object
-// more strictly than the `text` item. We omit the sendTo item for
-// now and add it in a follow-up change once we have the meta-schema
-// for the result sub-object confirmed. The user can still trigger a
-// ring by saving the form and using the live 0_userdata.0.FindMyDevice
-// state, which is the supported path today.
+// `testResult` is a `staticText` line whose value is pushed in from
+// `App.tsx`'s `testResult` state. The actual `Test Connection` button
+// is rendered by `App.tsx` itself (not as a `type: "sendTo"` schema
+// item) because JsonConfig's `ConfigSendTo` widget uses `window.alert`
+// to display the reply and does not call back into the parent to let
+// us put the result in this staticText line with a timestamp.
 {
   "type": "panel",
   "label": "FMD (Find My Device)",
@@ -76,6 +74,11 @@
           "type": "staticText",
           "label": "Last Error",
           "text": "n/a"
+        },
+        "testResult": {
+          "type": "staticText",
+          "label": "Last Test Result",
+          "text": "(click Test Connection to run)"
         }
       }
     },
@@ -91,6 +94,17 @@
           "type": "staticText",
           "label": "Available Ring States",
           "text": "(loading…)"
+        }
+      }
+    },
+    "debug": {
+      "type": "panel",
+      "label": "Debug",
+      "items": {
+        "debugRingTrigger": {
+          "type": "checkbox",
+          "label": "Debug Ring Trigger",
+          "text": "Log every ring-trigger state change at info level and run a startup self-check. Off in production."
         }
       }
     }
