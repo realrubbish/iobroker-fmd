@@ -128,23 +128,40 @@ export class FmdApi {
 
     /**
      * Send ring command to a device
-     * @param deviceId The device ID to ring
+     * @param deviceId The device ID to ring (informational only; the
+     *   FMD server routes by access-token-owner, not by device-id, so
+     *   the command is always delivered to the user this `FmdApi`
+     *   instance authenticated as. The `deviceId` is logged for
+     *   observability and kept in the public signature so the caller
+     *   does not have to change.)
      */
     public async sendRingCommand(deviceId: string): Promise<void> {
-        const command = `ring:${deviceId}`;
+        // The command string the FMD Android client expects is the
+        // single keyword `"ring"` — NOT `"ring:<deviceId>"` as an
+        // earlier (incorrect) reverse-engineering pass assumed.
+        //
+        // The Android client's ServerCommandDownloader.onResponse
+        // (ServerCommandDownloader.kt:73-75) prepends the user's
+        // configured trigger word ("$commandKeyword $remoteCommand")
+        // before handing the string to CommandParser. CommandParser
+        // splits on spaces, takes the second token, and compares it
+        // to each `Command.keyword`. RingCommand.keyword is `"ring"`
+        // (RingCommand.kt:19). Sending `"ring:<id>"` results in the
+        // second token being `"ring:<id>"`, which matches no command,
+        // and the dispatch silently drops the message — the ntfy push
+        // wakes the phone, the phone polls and decrypts, but the
+        // parser then has nothing to do.
+        //
+        // The signed payload is still `${unixTime}:${command}` per
+        // backend/apiv1.go:44 + FmdServerApiV1Repository.kt:594.
+        const command = "ring";
         const unixTime = Date.now();
 
-        // FMD server's commandData struct (backend/apiv1.go:44) and the
-        // Android client verifier (FmdServerApiV1Repository.kt:594)
-        // both build/sign the same string: "${unixTime}:${data}".
-        // Order is timestamp-first, then a literal ASCII colon, then
-        // the command. Built here once and passed to signRequest as a
-        // single payload (D3 in openspec/changes/fix-ring-signing).
         const payload = `${unixTime}:${command}`;
         const signature = await this.signRequest(payload);
 
         this.config.log.debug(
-            `ring: signed payload length=${payload.length} sig=${signature.slice(0, 8)}...`,
+            `ring: target=${deviceId} signed payload length=${payload.length} sig=${signature.slice(0, 8)}...`,
         );
 
         try {

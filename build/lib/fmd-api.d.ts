@@ -61,7 +61,12 @@ export declare class FmdApi {
     listDevices(): Promise<FmdDevice[]>;
     /**
      * Send ring command to a device
-     * @param deviceId The device ID to ring
+     * @param deviceId The device ID to ring (informational only; the
+     *   FMD server routes by access-token-owner, not by device-id, so
+     *   the command is always delivered to the user this `FmdApi`
+     *   instance authenticated as. The `deviceId` is logged for
+     *   observability and kept in the public signature so the caller
+     *   does not have to change.)
      */
     sendRingCommand(deviceId: string): Promise<void>;
     /**
