@@ -81,13 +81,13 @@ export function loadHostSocketScript(timeoutMs = 5_000): Promise<void> {
  */
 export interface AdapterSocket {
     readonly isLive: boolean;
-    getStates(pattern: string | string[]): Promise<Record<string, { val: unknown; ts?: number; ack?: boolean } | null | undefined>>;
-    getState(id: string): Promise<{ val: unknown; ts?: number; ack?: boolean } | null>;
+    getStates(pattern: string | string[]): Promise<Record<string, { val: unknown; ts?: number; lc?: number; ack?: boolean } | null | undefined>>;
+    getState(id: string): Promise<{ val: unknown; ts?: number; lc?: number; ack?: boolean } | null>;
     getObject(id: string): Promise<Record<string, unknown> | null>;
     setObject(id: string, obj: Record<string, unknown>): Promise<void>;
     setState(id: string, val: unknown): Promise<void>;
     sendTo<T = unknown>(instance: string, command: string, payload?: unknown): Promise<T>;
-    subscribeState(id: string, cb: (id: string, state: { val: unknown }) => void): () => void;
+    subscribeState(id: string, cb: (id: string, state: { val: unknown; lc?: number }) => void): () => void;
     /** Get the persisted native config object for system.adapter.<name>.<instance>. */
     getAdapterConfig(adapterName: string, instance: number): Promise<Record<string, unknown>>;
 }

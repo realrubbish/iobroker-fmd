@@ -32,6 +32,14 @@ import { createAdapterSocket, type AdapterSocket } from "./socket";
 const POLL_INTERVAL_MS = 5_000;
 const TEST_RESULT_PLACEHOLDER = "(click Test Connection to run)";
 
+// 12 s budget for the Test Connection round-trip. Generous enough to
+// cover Pi-class hardware (Argon2id × 2 + 2× HTTP round-trip +
+// AES-GCM unwrap + buffer) with a ~2× safety margin over the dev-host
+// worst-case (~3-5 s on a Pi, 600-800 ms on macOS M-series). On
+// timeout, the button re-enables itself and the Last Test Result
+// line shows the failure so a hung adapter does not strand the UI.
+const TEST_CONNECTION_TIMEOUT_MS = 12_000;
+
 interface AppProps {
     adapterName: string;
     instance: number;
@@ -58,10 +66,12 @@ export default function App({ adapterName, instance, themeName, themeType }: App
     const [testRunning, setTestRunning] = React.useState<boolean>(false);
     const [deviceList, setDeviceList] = React.useState<string>("(loading…)");
 
-    // Track the last observed lastError value so the poll loop can
-    // detect a fresh empty→non-empty transition and clear a stale "OK"
-    // testResult line (D3 step 4).
-    const lastErrorRef = React.useRef<string | null>(null);
+    // Track the last observed lastError timestamp (lastChanged / `lc`)
+    // so the poll loop can detect a fresh transition and clear a
+    // stale "OK" testResult line. The dedup key is the `lc` timestamp
+    // in ms, NOT the error string: an identical-but-fresh error must
+    // still clear a stale OK (D3 in the design).
+    const lastErrorLcRef = React.useRef<number | null>(null);
 
     // Seed: load the existing native config and the initial connection
     // status. The form becomes editable from the first paint.
@@ -100,11 +110,17 @@ export default function App({ adapterName, instance, themeName, themeType }: App
                 const errVal = err ? (typeof err.val === "string" ? err.val : null) : null;
                 // Fresh error transition: clear a stale "OK" line so the
                 // user is not misled by a successful test from minutes
-                // ago while the live state is now failing.
-                if (errVal && errVal.length > 0 && lastErrorRef.current !== errVal) {
+                // ago while the live state is now failing. The dedup
+                // key is `err.lc` (lastChanged), not the error string —
+                // a repeated error whose `lc` has NOT advanced does not
+                // clear the OK line; a fresh error (or the
+                // empty→non-empty transition) whose `lc` HAS advanced
+                // DOES clear it. Treat undefined `lc` as null.
+                const errLc = typeof err?.lc === "number" ? err.lc : null;
+                if (errLc !== null && lastErrorLcRef.current !== errLc) {
                     setTestResult(TEST_RESULT_PLACEHOLDER);
                 }
-                lastErrorRef.current = errVal;
+                lastErrorLcRef.current = errLc;
                 setData((prev) => ({
                     ...prev,
                     connectionState: {
@@ -153,12 +169,29 @@ export default function App({ adapterName, instance, themeName, themeType }: App
         if (!socket.isLive || testRunning) return;
         setTestRunning(true);
         const now = new Date().toLocaleTimeString();
+        // Client-side timeout so a hung adapter cannot strand the
+        // button in "Testing…" forever. The timeout-rejection
+        // propagates to the catch arm below; the finally arm
+        // re-enables the button. Tagged with a recognizable message
+        // for the catch-arm branch to detect (vs an arbitrary
+        // network error).
+        const timeoutMs = TEST_CONNECTION_TIMEOUT_MS;
+        let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+        const timeoutPromise = new Promise<never>((_resolve, reject) => {
+            timeoutHandle = setTimeout(
+                () => reject(new Error("testConnection timeout")),
+                timeoutMs,
+            );
+        });
         try {
-            const reply = (await socket.sendTo(
-                `${adapterName}.${instance}`,
-                "testConnection",
-                {},
-            )) as TestConnectionReply | null;
+            const reply = (await Promise.race([
+                socket.sendTo(
+                    `${adapterName}.${instance}`,
+                    "testConnection",
+                    {},
+                ),
+                timeoutPromise,
+            ])) as TestConnectionReply | null;
             if (reply && reply.error) {
                 setTestResult(`Failed – ${reply.error} at ${now}`);
             } else if (reply && reply.success) {
@@ -169,8 +202,18 @@ export default function App({ adapterName, instance, themeName, themeType }: App
                 setTestResult(`Failed – unexpected reply at ${now}`);
             }
         } catch (err) {
-            setTestResult(`Failed – ${err instanceof Error ? err.message : String(err)} at ${now}`);
+            const message = err instanceof Error ? err.message : String(err);
+            if (message === "testConnection timeout") {
+                // eslint-disable-next-line no-console
+                console.warn(`[iobroker-fmd] Test Connection timed out after ${timeoutMs}ms`);
+                setTestResult(`Failed – timed out after ${timeoutMs / 1000}s at ${now}`);
+            } else {
+                setTestResult(`Failed – ${message} at ${now}`);
+            }
         } finally {
+            if (timeoutHandle !== undefined) {
+                clearTimeout(timeoutHandle);
+            }
             setTestRunning(false);
         }
     }, [adapterName, instance, socket, testRunning]);

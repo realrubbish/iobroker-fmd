@@ -25,17 +25,6 @@ class FmdAdapter extends utils.Adapter {
     private connectionStatus: "disconnected" | "connecting" | "connected" | "error" = "disconnected";
     private devices: Map<string, FmdDevice> = new Map();
 
-    /**
-     * Timestamp at which the most recent `__selftest__` ring state
-     * was received by `onStateChange`, or `undefined` if no
-     * self-check has fired yet. Read by the startup self-check (Task
-     * 3.1 in fix-subscribe-semantics-bug) to determine whether the
-     * subscribe path actually delivers events. Static so the
-     * self-check can read it without holding a reference to the
-     * adapter instance.
-     */
-    public static selfCheckFiredAt: number | undefined = undefined;
-
     // Hardcoded button trigger state ID from vision.md
     private readonly BUTTON_STATE_ID = "shelly.0.shellyplus1pm#cc7b5c837250#1.Input0.Event";
     private readonly BUTTON_TRIGGER = "triple_push";
@@ -120,11 +109,17 @@ class FmdAdapter extends utils.Adapter {
 
         this.setConnectionStatus("connecting");
         try {
-            const tokens = await this.fmdAuth.authenticate();
-            this.authTokens = tokens;
+            // Short-circuit: if FmdAuth has cached tokens whose
+            // expiresAt is still in the future, reuse them and skip the
+            // full salt → Argon2id → access → Argon2id → AES-GCM dance.
+            if (this.fmdAuth.hasValidTokens()) {
+                this.authTokens = this.fmdAuth.getTokens()!;
+            } else {
+                this.authTokens = await this.fmdAuth.authenticate();
+            }
             this.fmdApi = new FmdApi({
                 serverUrl: config.serverUrl,
-                authTokens: tokens,
+                authTokens: this.authTokens,
                 log: this.log,
             });
             await this.fetchDevices();
@@ -211,8 +206,11 @@ class FmdAdapter extends utils.Adapter {
             throw new Error("FMD auth not initialized");
         }
 
-        // Lazy authentication
-        if (!this.authTokens) {
+        // Lazy authentication. Reuse the FmdAuth cache if it has
+        // valid tokens (not expired), otherwise run a full auth.
+        if (this.fmdAuth.hasValidTokens()) {
+            this.authTokens = this.fmdAuth.getTokens()!;
+        } else if (!this.authTokens) {
             this.authTokens = await this.fmdAuth.authenticate();
         }
 
@@ -365,18 +363,7 @@ class FmdAdapter extends utils.Adapter {
             return;
         }
 
-        // Self-check sentinel: if a ring state whose ID ends in
-        // "__selftest__" is set, do not dispatch a real ring; just set
-        // a flag the startup self-check can read.
         const ringMatch = id.match(/^0_userdata\.0\.FindMyDevice\.ring\.(.+)$/);
-        if (ringMatch) {
-            const deviceId = ringMatch[1];
-            if (deviceId === "__selftest__" && state.val === true) {
-                FmdAdapter.selfCheckFiredAt = Date.now();
-                this.log.info(`[self-check] ring state __selftest__ received, marking self-check fired`);
-                return;
-            }
-        }
 
         this.log.debug(`State change: ${id} = ${state.val}`);
 
@@ -468,8 +455,14 @@ class FmdAdapter extends utils.Adapter {
         this.setConnectionStatus("connecting");
 
         try {
-            const tokens = await this.fmdAuth.authenticate();
-            this.authTokens = tokens;
+            // Reuse cached tokens if FmdAuth has valid (non-expired)
+            // ones. The user clicking Test Connection is asking "do my
+            // cached credentials still work", not "force a fresh auth".
+            if (this.fmdAuth.hasValidTokens()) {
+                this.authTokens = this.fmdAuth.getTokens()!;
+            } else {
+                this.authTokens = await this.fmdAuth.authenticate();
+            }
 
             // Create API instance
             this.fmdApi = new FmdApi({
@@ -521,8 +514,12 @@ class FmdAdapter extends utils.Adapter {
             return;
         }
 
-        // Lazy authentication and API initialization
-        if (!this.authTokens) {
+        // Lazy authentication. Reuse the FmdAuth cache if it has
+        // valid tokens (the admin-UI ring path is the most
+        // latency-sensitive site — every Argon2id pass adds 1-3s).
+        if (this.fmdAuth.hasValidTokens()) {
+            this.authTokens = this.fmdAuth.getTokens()!;
+        } else if (!this.authTokens) {
             try {
                 this.authTokens = await this.fmdAuth.authenticate();
                 this.setConnectionStatus("connected");
