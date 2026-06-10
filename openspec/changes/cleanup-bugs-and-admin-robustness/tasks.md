@@ -40,6 +40,13 @@
 
 ## 6. Commit and ship
 
-- [ ] 6.1 Stage `src/main.ts`, `src/lib/fmd-auth.ts` (no functional change but the refactor is contiguous), `src-admin/App.tsx`, the regenerated `admin/` artefacts from task 5.5, and the four openspec change artefacts (`proposal.md`, `design.md`, `specs/**/*.md`, `tasks.md`).
-- [ ] 6.2 Commit with a Conventional Commits message of the form `fix(adapter): cleanup dead __selftest__ scaffolding + cache valid auth tokens + Test Connection timeout`. Co-author line per project convention.
-- [ ] 6.3 Push the branch. The user is the only one who runs the Docker dev cycle (per CLAUDE.md "NEVER auto-commit or auto-push"); stop here and let them run the install / upload / touch / verify steps.
+> Per `CLAUDE.md` ("NEVER auto-commit or auto-push") and the project
+> OpenSpec rule ("only implement features in an approved change"), the
+> git operations and the Docker dev cycle below are user-owned. The
+> agent must stage, commit, and push the source + artefacts, then
+> hand off; the user runs the install / upload / touch / verify steps.
+
+- [ ] 6.1 *(user-owned)* Stage `src/main.ts`, `src/lib/fmd-auth.ts` (no functional change but the refactor is contiguous), `src-admin/App.tsx`, the regenerated `admin/` artefacts from task 5.5, and the four openspec change artefacts (`proposal.md`, `design.md`, `specs/**/*.md`, `tasks.md`).
+- [ ] 6.2 *(user-owned)* Commit with a Conventional Commits message of the form `fix(adapter): cleanup dead __selftest__ scaffolding + cache valid auth tokens + Test Connection timeout`. Co-author line per project convention.
+- [ ] 6.3 *(user-owned)* Push the branch.
+- [ ] 6.4 *(user-owned)* Run the Docker dev cycle from `CLAUDE.md` § "Deployment & Testing Workflow": build the admin UI (`npm run build:admin` is a no-op after task 5.5), bring the container up, install the adapter from GitHub, apply the directory workaround, upload, and refresh the `io-package.json` cache via `touch`. Verify the admin wrench pop-up loads the new `admin/index.html`.
