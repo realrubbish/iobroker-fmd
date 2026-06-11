@@ -12,23 +12,25 @@
  *  - Save is handled by JsonConfig's built-in native-config flow; we
  *    only need to seed `data` with the existing config on mount.
  *
- * Test Connection (add-test-connection-button, refined by
- * add-or-fix-test-button-in-admin-pop-up):
+ * Ring Device (add-ring-button-in-admin-pop-up):
  *  - The PRIMARY entry point is the `type: "sendTo"` schema item in
  *    the Status panel of `schema.json5`. ioBroker.admin's native
  *    jsonConfig renderer (the surface admin 7.7.22 actually shows in
  *    the wrench pop-up — see `docs/admin-ui.md` §"Known limitation")
  *    renders that item as a button backed by the `ConfigSendTo` widget
- *    and displays the reply via `window.alert`.
- *  - This file's `handleTestConnection` and the visible `<button>` we
+ *    and displays the reply via `window.alert`. The widget passes
+ *    `payload = { deviceId: <configured ringDeviceId> }` to the adapter.
+ *  - This file's `handleRingDevice` and the visible `<button>` we
  *    render below the JsonConfig widget are the FALLBACK path for
- *    admin versions that load the Vite-SPA iframe. They format the
- *    reply inline as "OK – connected at HH:MM:SS" / "Failed – <reason>
- *    at HH:MM:SS", with a 12-second `Promise.race` timeout and the
- *    `err.lc` dedup from the 5s poll loop. They are gated on
- *    `!hasSchemaTestConnection` so the user never sees two buttons.
+ *    admin versions that load the Vite-SPA iframe. They mirror the
+ *    same `socket.sendTo("ring", { deviceId })` call and surface the
+ *    reply via the same `window.alert` (the iframe path is a no-op
+ *    for the native form, so the custom button only renders when the
+ *    schema item is gone). The 12-second `Promise.race` timeout
+ *    protects against a hung adapter. They are gated on
+ *    `!hasSchemaRingNow` so the user never sees two buttons.
  *  - The reply is shaped `{ success, message }` or `{ error }` — see
- *    `src/main.ts` `onMessage.testConnection`.
+ *    `src/main.ts` `onMessage.ring`.
  */
 import React from "react";
 import { JsonConfig } from "@iobroker/json-config";
@@ -37,31 +39,38 @@ import jsonConfigSchema from "./schema.json5";
 import { createAdapterSocket, type AdapterSocket } from "./socket";
 
 const POLL_INTERVAL_MS = 5_000;
-const TEST_RESULT_PLACEHOLDER = "(click Test Connection to run)";
 
-// 12 s budget for the Test Connection round-trip. Generous enough to
+// 12 s budget for the Ring Device round-trip. Generous enough to
 // cover Pi-class hardware (Argon2id × 2 + 2× HTTP round-trip +
-// AES-GCM unwrap + buffer) with a ~2× safety margin over the dev-host
-// worst-case (~3-5 s on a Pi, 600-800 ms on macOS M-series). On
-// timeout, the button re-enables itself and the Last Test Result
-// line shows the failure so a hung adapter does not strand the UI.
-const TEST_CONNECTION_TIMEOUT_MS = 12_000;
+// AES-GCM unwrap + buffer + ring dispatch) with a ~2× safety margin
+// over the dev-host worst-case (~3-5 s on a Pi, 600-800 ms on macOS
+// M-series). On timeout, the button re-enables itself and a
+// `window.alert` surfaces the failure so a hung adapter does not
+// strand the UI.
+const RING_DEVICE_TIMEOUT_MS = 12_000;
 
-// Detect whether the schema declares a `type: "sendTo"` Test Connection
+// Detect whether the schema declares a `type: "sendTo"` Ring Device
 // item. If it does, the native jsonConfig renderer (the surface
 // ioBroker.admin 7.7.22 actually shows) renders the button itself, and
 // our own custom `<button>` below would double-render alongside it.
 // The check is constant for the lifetime of the app — schema is a
 // module-level import — so we compute it once at module load.
-const hasSchemaTestConnection: boolean = (() => {
+const hasSchemaRingNow: boolean = (() => {
     const items = (jsonConfigSchema as { items?: Record<string, unknown> }).items;
+    // eslint-disable-next-line no-console
+    console.log("[iobroker-fmd DIAG] hasSchemaRingNow check:", {
+        hasItems: !!items,
+        itemsType: typeof items,
+        itemsKeys: items && typeof items === "object" ? Object.keys(items) : null,
+        probe: "jsonConfigSchema.items.status.items.ringNow.type === 'sendTo'",
+    });
     if (!items || typeof items !== "object") return false;
     const status = (items as Record<string, unknown>)["status"];
     if (!status || typeof status !== "object") return false;
     const statusItems = (status as { items?: Record<string, unknown> }).items;
     if (!statusItems || typeof statusItems !== "object") return false;
-    const tc = (statusItems as Record<string, unknown>)["testConnection"];
-    return !!tc && typeof tc === "object" && (tc as { type?: string }).type === "sendTo";
+    const ring = (statusItems as Record<string, unknown>)["ringNow"];
+    return !!ring && typeof ring === "object" && (ring as { type?: string }).type === "sendTo";
 })();
 
 interface AppProps {
@@ -71,7 +80,7 @@ interface AppProps {
     themeType: IobTheme["themeType"];
 }
 
-interface TestConnectionReply {
+interface RingDeviceReply {
     success?: boolean;
     message?: string;
     error?: string;
@@ -86,16 +95,8 @@ export default function App({ adapterName, instance, themeName, themeType }: App
     // call `updateData` whenever the user changes a field. Live panels
     // (status + devices) overwrite their own keys on each poll.
     const [data, setData] = React.useState<Record<string, unknown>>({});
-    const [testResult, setTestResult] = React.useState<string>(TEST_RESULT_PLACEHOLDER);
-    const [testRunning, setTestRunning] = React.useState<boolean>(false);
+    const [ringRunning, setRingRunning] = React.useState<boolean>(false);
     const [deviceList, setDeviceList] = React.useState<string>("(loading…)");
-
-    // Track the last observed lastError timestamp (lastChanged / `lc`)
-    // so the poll loop can detect a fresh transition and clear a
-    // stale "OK" testResult line. The dedup key is the `lc` timestamp
-    // in ms, NOT the error string: an identical-but-fresh error must
-    // still clear a stale OK (D3 in the design).
-    const lastErrorLcRef = React.useRef<number | null>(null);
 
     // Seed: load the existing native config and the initial connection
     // status. The form becomes editable from the first paint.
@@ -132,29 +133,20 @@ export default function App({ adapterName, instance, themeName, themeType }: App
                 const err = infoStates[`system.adapter.${adapterName}.${instance}.info.lastError`];
                 if (cancelled) return;
                 const errVal = err ? (typeof err.val === "string" ? err.val : null) : null;
-                // Fresh error transition: clear a stale "OK" line so the
-                // user is not misled by a successful test from minutes
-                // ago while the live state is now failing. The dedup
-                // key is `err.lc` (lastChanged), not the error string —
-                // a repeated error whose `lc` has NOT advanced does not
-                // clear the OK line; a fresh error (or the
-                // empty→non-empty transition) whose `lc` HAS advanced
-                // DOES clear it. Treat undefined `lc` as null.
-                const errLc = typeof err?.lc === "number" ? err.lc : null;
-                if (errLc !== null && lastErrorLcRef.current !== errLc) {
-                    setTestResult(TEST_RESULT_PLACEHOLDER);
-                }
-                lastErrorLcRef.current = errLc;
+                // Note: only `val` here. We do NOT push a `display` key
+                // into the `connectionState` `staticText` field because
+                // the @iobroker/json-config schema validator rejects
+                // unknown properties on staticText items, and a single
+                // invalid key in the Status panel causes the admin SPA
+                // to skip the whole panel (so the `Ring Device`
+                // button we ship would not render either). The
+                // boolean `val` is rendered as a checkbox-style
+                // "true"/"false" by the staticText widget; that is
+                // good enough for a status indicator and keeps the
+                // schema valid.
                 setData((prev) => ({
                     ...prev,
-                    connectionState: {
-                        val: conn ? conn.val === true : false,
-                        display: conn
-                            ? conn.val === true
-                                ? "connected"
-                                : "disconnected"
-                            : "unknown",
-                    },
+                    connectionState: { val: conn ? conn.val === true : false },
                     lastError: { val: errVal },
                 }));
 
@@ -184,29 +176,36 @@ export default function App({ adapterName, instance, themeName, themeType }: App
         };
     }, [adapterName, instance, socket]);
 
-    // Handle the Test Connection button click. This handler is the
+    // Handle the Ring Device button click. This handler is the
     // fallback path — see the contract in the file header. The primary
     // path on admin 7.7.22 is the `type: "sendTo"` schema item, which
-    // calls `socket.sendTo("testConnection", …)` itself and shows the
-    // reply via `window.alert`. We format the reply for the
-    // `Last Test Result` staticText line so the iframe-path users (a
-    // future admin version that takes the iframe branch) still get the
-    // inline + timestamped experience.
-    const handleTestConnection = React.useCallback(async () => {
-        if (!socket.isLive || testRunning) return;
-        setTestRunning(true);
-        const now = new Date().toLocaleTimeString();
+    // calls `socket.sendTo("ring", { deviceId })` itself and shows the
+    // reply via `window.alert`. We mirror the same call here for
+    // future admin versions that take the iframe path AND that have
+    // been forked to remove the `type: "sendTo"` schema item, and
+    // surface the reply the same way the native form would.
+    const handleRingDevice = React.useCallback(async () => {
+        if (!socket.isLive || ringRunning) return;
+        setRingRunning(true);
+        // Read the configured deviceId from the form data the JsonConfig
+        // already populated from `system.adapter.iobroker-fmd.0.native`
+        // (see the seed effect at the top of this component). The
+        // adapter-runtime is the source of truth for the live value;
+        // we only read what the SPA was given on mount. An empty
+        // deviceId is passed through to the adapter-runtime, which
+        // replies with an error that we surface via `window.alert`.
+        const ringDeviceId = typeof data["ringDeviceId"] === "string" ? (data["ringDeviceId"] as string) : "";
         // Client-side timeout so a hung adapter cannot strand the
-        // button in "Testing…" forever. The timeout-rejection
+        // button in "Ringing…" forever. The timeout-rejection
         // propagates to the catch arm below; the finally arm
         // re-enables the button. Tagged with a recognizable message
         // for the catch-arm branch to detect (vs an arbitrary
         // network error).
-        const timeoutMs = TEST_CONNECTION_TIMEOUT_MS;
+        const timeoutMs = RING_DEVICE_TIMEOUT_MS;
         let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
         const timeoutPromise = new Promise<never>((_resolve, reject) => {
             timeoutHandle = setTimeout(
-                () => reject(new Error("testConnection timeout")),
+                () => reject(new Error("ring timeout")),
                 timeoutMs,
             );
         });
@@ -214,36 +213,34 @@ export default function App({ adapterName, instance, themeName, themeType }: App
             const reply = (await Promise.race([
                 socket.sendTo(
                     `${adapterName}.${instance}`,
-                    "testConnection",
-                    {},
+                    "ring",
+                    { deviceId: ringDeviceId },
                 ),
                 timeoutPromise,
-            ])) as TestConnectionReply | null;
+            ])) as RingDeviceReply | null;
             if (reply && reply.error) {
-                setTestResult(`Failed – ${reply.error} at ${now}`);
+                window.alert(`Ring Device failed: ${reply.error}`);
             } else if (reply && reply.success) {
-                setTestResult(`OK – connected at ${now}`);
+                window.alert(`Ring Device: ${reply.message || "ok"}`);
             } else {
-                // Unexpected shape: surface whatever the adapter sent so
-                // the user (and we) can debug.
-                setTestResult(`Failed – unexpected reply at ${now}`);
+                window.alert("Ring Device: unexpected reply");
             }
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
-            if (message === "testConnection timeout") {
+            if (message === "ring timeout") {
                 // eslint-disable-next-line no-console
-                console.warn(`[iobroker-fmd] Test Connection timed out after ${timeoutMs}ms`);
-                setTestResult(`Failed – timed out after ${timeoutMs / 1000}s at ${now}`);
+                console.warn(`[iobroker-fmd] Ring Device timed out after ${timeoutMs}ms`);
+                window.alert(`Ring Device timed out after ${timeoutMs / 1000}s`);
             } else {
-                setTestResult(`Failed – ${message} at ${now}`);
+                window.alert(`Ring Device failed: ${message}`);
             }
         } finally {
             if (timeoutHandle !== undefined) {
                 clearTimeout(timeoutHandle);
             }
-            setTestRunning(false);
+            setRingRunning(false);
         }
-    }, [adapterName, instance, socket, testRunning]);
+    }, [adapterName, instance, socket, ringRunning, data]);
 
     // Build a minimal IobTheme. The host admin already styles the iframe
     // parent; JsonConfig only needs the name/type fields to be valid.
@@ -281,7 +278,6 @@ export default function App({ adapterName, instance, themeName, themeType }: App
                 data={{
                     ...data,
                     deviceList: { val: deviceList },
-                    testResult: { val: testResult },
                 }}
                 updateData={(newData) =>
                     setData((prev) => ({ ...prev, ...newData }))
@@ -298,23 +294,23 @@ export default function App({ adapterName, instance, themeName, themeType }: App
                 remove the `type: "sendTo"` schema item. The main path is
                 the schema item, which is rendered in both the native
                 form (admin 7.7.22) and the iframe path. We gate the
-                custom button on `!hasSchemaTestConnection` so the user
-                never sees two buttons.
+                custom button on `!hasSchemaRingNow` so the user never
+                sees two buttons.
             */}
-            {!hasSchemaTestConnection && (
+            {!hasSchemaRingNow && (
                 <div style={{ marginTop: 12 }}>
                     <button
                         type="button"
-                        onClick={handleTestConnection}
-                        disabled={!socket.isLive || testRunning}
+                        onClick={handleRingDevice}
+                        disabled={!socket.isLive || ringRunning}
                         aria-live="polite"
                         style={{
                             padding: "6px 14px",
                             fontSize: 14,
-                            cursor: testRunning ? "wait" : "pointer",
+                            cursor: ringRunning ? "wait" : "pointer",
                         }}
                     >
-                        {testRunning ? "Testing…" : "Test Connection"}
+                        {ringRunning ? "Ringing…" : "Ring Device"}
                     </button>
                 </div>
             )}

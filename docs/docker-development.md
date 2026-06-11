@@ -61,11 +61,11 @@ Open the Admin UI at http://localhost:8081, find the iobroker-fmd adapter instan
 docker exec iobroker-fmd-dev iobroker logs iobroker-fmd --files=20
 ```
 
-Click the `Test Connection` button in the wrench pop-up. The reply is
-shown via `window.alert` on admin 7.7.22 (the native jsonConfig
-renderer) and inline on admin versions that load the Vite SPA in an
-iframe. The adapter-side `onMessage.testConnection` handler in
-`src/main.ts` is the same in both cases.
+Click the `Ring Device` button in the wrench pop-up. The phone rings
+within ~2 s. The reply is shown via `window.alert` on admin 7.7.22
+(the native jsonConfig renderer) and via the same `window.alert` on
+admin versions that load the Vite SPA in an iframe. The adapter-side
+`onMessage.ring` handler in `src/main.ts` is the same in both cases.
 
 ## Common Issues
 

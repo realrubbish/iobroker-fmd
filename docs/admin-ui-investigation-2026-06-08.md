@@ -142,10 +142,13 @@ container after `iobroker url https://github.com/realrubbish/iobroker-fmd`.
 
 **However**, in a fresh E2E test on 2026-06-11 (js-controller 7.1.2,
 ioBroker.admin 7.7.22), the wrench pop-up does **not** load the Vite
-SPA. It renders the native ioBroker jsonConfig form. The `Test
-Connection` button was missing from the pop-up; this change
-(`add-or-fix-test-button-in-admin-pop-up`) adds it back via a
-`type: "sendTo"` schema item, reachable in the native form. The live
+SPA. It renders the native ioBroker jsonConfig form. The Test
+Connection button was the wrong action for a wrench pop-up that
+already exposes the adapter's auth state and the `npm run auth:smoke`
+script for credential verification. The follow-up change
+`add-ring-button-in-admin-pop-up` re-purposes the Status-panel
+button slot to a `Ring Device` sendTo item (command: `ring`, payload:
+`{ deviceId: config.ringDeviceId }`). The live
 `0_userdata.0.FindMyDevice` device panel and the `App.tsx`-managed
 layout remain gated behind the iframe path and are tracked as a
 separate follow-up. The `v0.0.1` header in the form, the standard
@@ -163,8 +166,8 @@ in the test container are at the levels this investigation assumed
 would always take the iframe path.
 
 The full diagnosis and the workarounds (manual ring trigger via
-`iobroker state set`, manual Test Connection via the standalone
-SPA URL) are recorded in
+`iobroker state set`, manual ring via the standalone SPA URL) are
+recorded in
 [`admin-ui.md` § Known limitation](admin-ui.md#known-limitation-admin-722-spa-renders-native-form).
 A follow-up investigation is needed to identify the exact branch
 in the admin SPA that gates the iframe; the current `getDevices`

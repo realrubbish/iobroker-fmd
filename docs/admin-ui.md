@@ -76,24 +76,25 @@ is broken:
   see [`fmd-server-single-device-design.md`](fmd-server-single-device-design.md).
   See [Common adapter tests](docker-development.md) for the exact
   commands.
-- **Test Connection** is now reachable in the native form via the
+- **Ring Device** is reachable in the native form via the
   `type: "sendTo"` schema item in `src-admin/schema.json5` (Status
   panel). The reply is shown via `window.alert` (the ioBroker admin
-  default for the built-in `ConfigSendTo` widget). The 12s
-  `Promise.race` timeout and the inline `Last Test Result: <msg> at
-  HH:MM:SS` formatting remain gated behind the iframe path — they
-  run in `App.tsx`'s fallback `<button>`, which is rendered only when
-  the surrounding surface is the Vite SPA (i.e. a future admin
-  version that takes the iframe branch). The change is the
-  `add-or-fix-test-button-in-admin-pop-up` OpenSpec change.
+  default for the built-in `ConfigSendTo` widget). The button sends
+  `ring` to the adapter with `payload: { deviceId: config.ringDeviceId }`;
+  the adapter's `onMessage.ring` handler dispatches the ring. The
+  inline `Last Ring Result: <msg> at HH:MM:SS` formatting remains gated
+  behind the iframe path — it runs in `App.tsx`'s fallback `<button>`,
+  which is rendered only when the surrounding surface is the Vite SPA
+  (i.e. a future admin version that takes the iframe branch). The
+  change is the `add-ring-button-in-admin-pop-up` OpenSpec change.
 
 Until a follow-up investigation identifies the admin-SPA branch that
 gates the iframe, treat any "the live device panel is missing" or
 "`App.tsx`-managed layout is missing" reports as
-expected-on-7.7.22 / js-controller-7.1.2. The Test Connection button
-is no longer in that list — it is reachable in the deployed native
-form. The adapter code itself is correct; the gap is purely a
-delivery surface.
+expected-on-7.7.22 / js-controller-7.1.2. The Ring Device button is
+no longer in that list — it is reachable in the deployed native form.
+The adapter code itself is correct; the gap is purely a delivery
+surface.
 
 ## Build pipeline
 

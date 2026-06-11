@@ -14,18 +14,21 @@
 // keys (serverUrl, username, password, ringDeviceId, buttonStateId)
 // for the standard save path to work.
 //
-// `testResult` is a `staticText` line whose value is pushed in from
-// `App.tsx`'s `testResult` state. The `Test Connection` button is
-// declared as a `type: "sendTo"` form item in the Status panel so it
+// `ringNow` is a `type: "sendTo"` form item in the Status panel so it
 // is reachable in ioBroker.admin's native jsonConfig renderer (the
-// surface that admin 7.7.22 actually shows in the wrench pop-up — see
-// the "Known limitation" section in `docs/admin-ui.md`). The
-// `ConfigSendTo` widget displays the reply via `window.alert`; the
-// inline `Last Test Result: <msg> at HH:MM:SS` formatting that
-// `App.tsx` provides remains active only on admin versions that
-// render the pop-up in the Vite-SPA iframe path. `App.tsx` guards its
-// own custom button so it does not double-render alongside this
-// schema item.
+// surface that admin 7.7.22 actually shows in the wrench pop-up —
+// see the "Known limitation" section in `docs/admin-ui.md`). On
+// click, the built-in `ConfigSendTo` widget calls
+// `socket.sendTo(adapterName.instance, "ring", payload)`. The widget
+// displays the reply via `window.alert`. The adapter's `onMessage.ring`
+// handler in `src/main.ts:505-555` accepts
+// `obj.message?.deviceId` and dispatches the ring. The reply is
+// shaped `{ success, message }` or `{ error }`. The inline
+// `Last Ring Result: <msg> at HH:MM:SS` formatting that `App.tsx`
+// provides remains active only on admin versions that render the
+// pop-up in the Vite-SPA iframe path; the native form relies on
+// `window.alert` for the reply. `App.tsx` guards its own custom
+// button so it does not double-render alongside this schema item.
 {
   "type": "panel",
   "label": "FMD (Find My Device)",
@@ -76,20 +79,15 @@
           "label": "Status",
           "text": "n/a"
         },
-        "testConnection": {
+        "ringNow": {
           "type": "sendTo",
-          "label": "Test Connection",
-          "command": "testConnection"
+          "label": "Ring Device",
+          "command": "ring"
         },
         "lastError": {
           "type": "staticText",
           "label": "Last Error",
           "text": "n/a"
-        },
-        "testResult": {
-          "type": "staticText",
-          "label": "Last Test Result",
-          "text": "(click Test Connection to run)"
         }
       }
     },
