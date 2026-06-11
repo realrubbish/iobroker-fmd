@@ -15,11 +15,17 @@
 // for the standard save path to work.
 //
 // `testResult` is a `staticText` line whose value is pushed in from
-// `App.tsx`'s `testResult` state. The actual `Test Connection` button
-// is rendered by `App.tsx` itself (not as a `type: "sendTo"` schema
-// item) because JsonConfig's `ConfigSendTo` widget uses `window.alert`
-// to display the reply and does not call back into the parent to let
-// us put the result in this staticText line with a timestamp.
+// `App.tsx`'s `testResult` state. The `Test Connection` button is
+// declared as a `type: "sendTo"` form item in the Status panel so it
+// is reachable in ioBroker.admin's native jsonConfig renderer (the
+// surface that admin 7.7.22 actually shows in the wrench pop-up — see
+// the "Known limitation" section in `docs/admin-ui.md`). The
+// `ConfigSendTo` widget displays the reply via `window.alert`; the
+// inline `Last Test Result: <msg> at HH:MM:SS` formatting that
+// `App.tsx` provides remains active only on admin versions that
+// render the pop-up in the Vite-SPA iframe path. `App.tsx` guards its
+// own custom button so it does not double-render alongside this
+// schema item.
 {
   "type": "panel",
   "label": "FMD (Find My Device)",
@@ -69,6 +75,11 @@
           "type": "staticText",
           "label": "Status",
           "text": "n/a"
+        },
+        "testConnection": {
+          "type": "sendTo",
+          "label": "Test Connection",
+          "command": "testConnection"
         },
         "lastError": {
           "type": "staticText",

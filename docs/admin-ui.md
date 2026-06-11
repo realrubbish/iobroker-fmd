@@ -6,16 +6,94 @@ extended. For the diagnostic that motivated this work, see
 
 ## Why the UI exists
 
-ioBroker.admin 7.7.22 (the React SPA) always renders the wrench pop-up for an
-adapter instance as an iframe pointing at `admin/index.html` (or
-`admin/index_m.html` for materialize users). Without an `index.html`, the
-browser logs `GET /adapter/iobroker-fmd/index.html?... 404` and the pop-up
-fails to load. The `adminUI.config = "json"` flag does **not** skip the
-iframe; it only governs the data source for the Instances list and the
-sidebar adapter tab. The wrench pop-up always asks for `index.html`.
+> **Status (2026-06-11):** the assumption below — that ioBroker.admin
+> 7.7.22 always loads the adapter's `admin/index.html` in an iframe for
+> the wrench pop-up — holds **only when** the admin SPA decides to take
+> the iframe branch. In the user's current dev container (js-controller
+> 7.1.2, ioBroker.admin 7.7.22) the SPA still renders the **native**
+> `jsonConfig.json5` form for this adapter, so the custom
+> `Test Connection` button, the `0_userdata.0.FindMyDevice` live panel,
+> and the `App.tsx`-managed layout never appear. The page that the
+> browser loads in the pop-up is the built-in ioBroker form, not our
+> Vite SPA. See the [Known limitation](#known-limitation-admin-722-spa-renders-native-form) section
+> below for what was verified, what is not yet known, and how to
+> test-drive the missing UI manually.
+
+ioBroker.admin 7.7.22 (the React SPA) is *expected* to render the wrench
+pop-up for an adapter instance as an iframe pointing at `admin/index.html`
+(or `admin/index_m.html` for materialize users). Without an `index.html`,
+the browser logs `GET /adapter/iobroker-fmd/index.html?... 404` and the
+pop-up fails to load. The `adminUI.config = "json"` flag does **not**
+skip the iframe; it only governs the data source for the Instances list
+and the sidebar adapter tab. The wrench pop-up asks for `index.html`.
 
 The UI we ship uses the same `JsonConfig` form component that the Instances
 list uses, so the form definition is the same shape across both surfaces.
+
+## Known limitation: admin 7.22 SPA renders native form
+
+Discovered 2026-06-11 during an E2E test session. The wrench pop-up for
+`iobroker-fmd.0` shows ioBroker's built-in jsonConfig form (the same
+form the Instances list uses), **not** the Vite SPA we ship at
+`admin/index.html`. The visible symptoms:
+
+- The form header reads `v0.0.1` (from `io-package.json`), not the
+  custom header `App.tsx` renders
+- There is no `Test Connection` button (it lives in `App.tsx`)
+- There is no live `0_userdata.0.FindMyDevice` device panel
+- The footer has the standard ioBroker `Save` / `Save and Close` /
+  `Close` buttons, not the custom footer `App.tsx` renders
+
+What was verified during the diagnostic:
+
+| Check | Result |
+| --- | --- |
+| `GET /adapter/iobroker-fmd/index.html` | HTTP 200, returns the Vite shell with `<div id="root" class="fmd-admin-root">` and the `assets/index-DC87ih8b.js` entry |
+| `App-J72l3Pde.js` contains the `Test Connection` string | Yes, 2 occurrences — the React code is in the bundle |
+| `GET /lib/js/socket.io.js` | HTTP 200 — the host admin's Socket.IO client is reachable |
+| `GET /validate_config/iobroker-fmd` | returns the literal string `"validated"` (hardcoded in `iobroker.admin/build/lib/web.js`) |
+| Upgrade js-controller 7.0.7 → 7.1.2 | no change to the `validate_config` response — `"validated"` in both versions |
+
+What is **not** yet known:
+
+- The decision happens client-side in
+  `iobroker.admin/admin/custom/assets/index-*.js` (a minified React
+  bundle). Which specific branch skips the iframe for this adapter is
+  not readable without a serious minified-JS dive.
+- It is unclear whether the React `JsonConfig` import is failing on
+  this admin version, whether `adminUI.config = "json"` is being read
+  as a "render the schema locally" hint, or whether some other
+  condition (browser cache, controller compat flag) controls it.
+
+Workarounds for testing the SPA features manually while the iframe path
+is broken:
+
+- **Ring trigger**: the adapter still subscribes to
+  `0_userdata.0.FindMyDevice.ring.*` and to the configured button
+  state. Set the ring state to `true` (or write `triple_push` to the
+  Shelly state) from outside the admin UI; the adapter fires the ring.
+  On the user's single-device FMD account the deviceId is the username;
+  see [`fmd-server-single-device-design.md`](fmd-server-single-device-design.md).
+  See [Common adapter tests](docker-development.md) for the exact
+  commands.
+- **Test Connection** is now reachable in the native form via the
+  `type: "sendTo"` schema item in `src-admin/schema.json5` (Status
+  panel). The reply is shown via `window.alert` (the ioBroker admin
+  default for the built-in `ConfigSendTo` widget). The 12s
+  `Promise.race` timeout and the inline `Last Test Result: <msg> at
+  HH:MM:SS` formatting remain gated behind the iframe path — they
+  run in `App.tsx`'s fallback `<button>`, which is rendered only when
+  the surrounding surface is the Vite SPA (i.e. a future admin
+  version that takes the iframe branch). The change is the
+  `add-or-fix-test-button-in-admin-pop-up` OpenSpec change.
+
+Until a follow-up investigation identifies the admin-SPA branch that
+gates the iframe, treat any "the live device panel is missing" or
+"`App.tsx`-managed layout is missing" reports as
+expected-on-7.7.22 / js-controller-7.1.2. The Test Connection button
+is no longer in that list — it is reachable in the deployed native
+form. The adapter code itself is correct; the gap is purely a
+delivery surface.
 
 ## Build pipeline
 

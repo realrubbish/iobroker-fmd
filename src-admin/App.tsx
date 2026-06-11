@@ -12,16 +12,23 @@
  *  - Save is handled by JsonConfig's built-in native-config flow; we
  *    only need to seed `data` with the existing config on mount.
  *
- * Test Connection (add-test-connection-button):
- *  - We render the button as a real React `<button>` outside the
- *    JsonConfig widget tree, because `JsonConfig`'s built-in
- *    `type: "sendTo"` widget surfaces the reply via `window.alert` and
- *    has no callback hook to feed our `testResult` staticText line.
+ * Test Connection (add-test-connection-button, refined by
+ * add-or-fix-test-button-in-admin-pop-up):
+ *  - The PRIMARY entry point is the `type: "sendTo"` schema item in
+ *    the Status panel of `schema.json5`. ioBroker.admin's native
+ *    jsonConfig renderer (the surface admin 7.7.22 actually shows in
+ *    the wrench pop-up — see `docs/admin-ui.md` §"Known limitation")
+ *    renders that item as a button backed by the `ConfigSendTo` widget
+ *    and displays the reply via `window.alert`.
+ *  - This file's `handleTestConnection` and the visible `<button>` we
+ *    render below the JsonConfig widget are the FALLBACK path for
+ *    admin versions that load the Vite-SPA iframe. They format the
+ *    reply inline as "OK – connected at HH:MM:SS" / "Failed – <reason>
+ *    at HH:MM:SS", with a 12-second `Promise.race` timeout and the
+ *    `err.lc` dedup from the 5s poll loop. They are gated on
+ *    `!hasSchemaTestConnection` so the user never sees two buttons.
  *  - The reply is shaped `{ success, message }` or `{ error }` — see
- *    `src/main.ts` `onMessage.testConnection`. We format it as
- *    "OK – connected at HH:MM:SS" / "Failed – <reason> at HH:MM:SS".
- *  - The 5s poll loop clears a stale "OK" line on a fresh
- *    `info.lastError` (see D3 step 4 of the design).
+ *    `src/main.ts` `onMessage.testConnection`.
  */
 import React from "react";
 import { JsonConfig } from "@iobroker/json-config";
@@ -39,6 +46,23 @@ const TEST_RESULT_PLACEHOLDER = "(click Test Connection to run)";
 // timeout, the button re-enables itself and the Last Test Result
 // line shows the failure so a hung adapter does not strand the UI.
 const TEST_CONNECTION_TIMEOUT_MS = 12_000;
+
+// Detect whether the schema declares a `type: "sendTo"` Test Connection
+// item. If it does, the native jsonConfig renderer (the surface
+// ioBroker.admin 7.7.22 actually shows) renders the button itself, and
+// our own custom `<button>` below would double-render alongside it.
+// The check is constant for the lifetime of the app — schema is a
+// module-level import — so we compute it once at module load.
+const hasSchemaTestConnection: boolean = (() => {
+    const items = (jsonConfigSchema as { items?: Record<string, unknown> }).items;
+    if (!items || typeof items !== "object") return false;
+    const status = (items as Record<string, unknown>)["status"];
+    if (!status || typeof status !== "object") return false;
+    const statusItems = (status as { items?: Record<string, unknown> }).items;
+    if (!statusItems || typeof statusItems !== "object") return false;
+    const tc = (statusItems as Record<string, unknown>)["testConnection"];
+    return !!tc && typeof tc === "object" && (tc as { type?: string }).type === "sendTo";
+})();
 
 interface AppProps {
     adapterName: string;
@@ -160,11 +184,14 @@ export default function App({ adapterName, instance, themeName, themeType }: App
         };
     }, [adapterName, instance, socket]);
 
-    // Handle the Test Connection button click. We do not use
-    // JsonConfig's `type: "sendTo"` widget (it shows the reply via
-    // `window.alert` and has no callback), so we wire the call to
-    // `socket.sendTo` ourselves and format the reply for the
-    // `Last Test Result` staticText line in the status panel.
+    // Handle the Test Connection button click. This handler is the
+    // fallback path — see the contract in the file header. The primary
+    // path on admin 7.7.22 is the `type: "sendTo"` schema item, which
+    // calls `socket.sendTo("testConnection", …)` itself and shows the
+    // reply via `window.alert`. We format the reply for the
+    // `Last Test Result` staticText line so the iframe-path users (a
+    // future admin version that takes the iframe branch) still get the
+    // inline + timestamped experience.
     const handleTestConnection = React.useCallback(async () => {
         if (!socket.isLive || testRunning) return;
         setTestRunning(true);
@@ -265,25 +292,32 @@ export default function App({ adapterName, instance, themeName, themeType }: App
                 }}
                 schema={jsonConfigSchema as never}
             />
-            {/* Visible Test Connection button — rendered here (not as
-                a JsonConfig `type: "sendTo"` item) so we can format the
-                reply into the `testResult` staticText line with a
-                timestamp. */}
-            <div style={{ marginTop: 12 }}>
-                <button
-                    type="button"
-                    onClick={handleTestConnection}
-                    disabled={!socket.isLive || testRunning}
-                    aria-live="polite"
-                    style={{
-                        padding: "6px 14px",
-                        fontSize: 14,
-                        cursor: testRunning ? "wait" : "pointer",
-                    }}
-                >
-                    {testRunning ? "Testing…" : "Test Connection"}
-                </button>
-            </div>
+            {/*
+                The custom button is a fallback for future admin versions
+                that take the iframe path AND that have been forked to
+                remove the `type: "sendTo"` schema item. The main path is
+                the schema item, which is rendered in both the native
+                form (admin 7.7.22) and the iframe path. We gate the
+                custom button on `!hasSchemaTestConnection` so the user
+                never sees two buttons.
+            */}
+            {!hasSchemaTestConnection && (
+                <div style={{ marginTop: 12 }}>
+                    <button
+                        type="button"
+                        onClick={handleTestConnection}
+                        disabled={!socket.isLive || testRunning}
+                        aria-live="polite"
+                        style={{
+                            padding: "6px 14px",
+                            fontSize: 14,
+                            cursor: testRunning ? "wait" : "pointer",
+                        }}
+                    >
+                        {testRunning ? "Testing…" : "Test Connection"}
+                    </button>
+                </div>
+            )}
             {!socket.isLive && (
                 <p style={{ color: "#a00", marginTop: 12 }}>
                     Live data unavailable: the host admin's <code>socket.io.js</code> did not load.

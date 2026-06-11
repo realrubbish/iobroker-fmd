@@ -131,3 +131,43 @@ which mounts the `JsonConfig` component with the schema and a live
 adapter socket that reuses the host admin's `socket.io.js` global. See
 [`admin-ui.md`](admin-ui.md) for the build pipeline, the
 module-federation contract, and the upgrade procedure.
+
+## Status update (2026-06-11)
+
+The implementation from this investigation was merged (the
+`add-admin-ui-index-html` change and its follow-ups) and the
+container-side artifacts (`admin/index.html`, `admin/index_m.html`,
+`admin/assets/`, `admin/jsonConfig.json5`) are present in the
+container after `iobroker url https://github.com/realrubbish/iobroker-fmd`.
+
+**However**, in a fresh E2E test on 2026-06-11 (js-controller 7.1.2,
+ioBroker.admin 7.7.22), the wrench pop-up does **not** load the Vite
+SPA. It renders the native ioBroker jsonConfig form. The `Test
+Connection` button was missing from the pop-up; this change
+(`add-or-fix-test-button-in-admin-pop-up`) adds it back via a
+`type: "sendTo"` schema item, reachable in the native form. The live
+`0_userdata.0.FindMyDevice` device panel and the `App.tsx`-managed
+layout remain gated behind the iframe path and are tracked as a
+separate follow-up. The `v0.0.1` header in the form, the standard
+`Save` / `Save and Close` / `Close` buttons, and the
+`FMD Server URL` / `Username` / `Password` field order all come from
+`admin/jsonConfig.json5` consumed by the admin SPA directly — not
+from our `App.tsx`.
+
+The Vite SPA path is still reachable as a standalone URL
+(`http://localhost:8081/adapter/iobroker-fmd/`), the bundle is
+correct, and `socket.io.js` loads. The bug is a client-side
+decision in the minified `iobroker.admin` bundle that skips the
+iframe for this adapter; the controller and admin versions installed
+in the test container are at the levels this investigation assumed
+would always take the iframe path.
+
+The full diagnosis and the workarounds (manual ring trigger via
+`iobroker state set`, manual Test Connection via the standalone
+SPA URL) are recorded in
+[`admin-ui.md` § Known limitation](admin-ui.md#known-limitation-admin-722-spa-renders-native-form).
+A follow-up investigation is needed to identify the exact branch
+in the admin SPA that gates the iframe; the current `getDevices`
+finding (returns `[]` for the user's single-device account, so the
+deviceId has to be known a priori) is tracked separately in
+[`fmd-server-single-device-design.md`](fmd-server-single-device-design.md).
